@@ -1,11 +1,14 @@
-# nostreye
+# OpenVeilCam
 
-`nostreye` captures images from a Raspberry Pi camera and integrates them with the Nostr protocol. It signs events and frame data, then publishes images to Nostr relays.
+[openveil.world](https://openveil.world)
+
+`OpenVeilCam` captures images from a Raspberry Pi camera and integrates them with the Nostr protocol. It signs events and frame data, then publishes images to Nostr relays.
+
 
 ## Project Structure
 
-- `nostreye-cam`: A Rust application that discovers the Pi camera, captures stills to JPEG, generates cryptographic signatures via hardware-linked identity (`NostreyeSigner`), and publishes to Nostr via Blossom and relays.
-- `deploy.sh`: Deploys and builds `nostreye-cam` from your development environment to a Raspberry Pi over SSH.
+- `OpenVeilCam`: A Rust application that discovers the Pi camera, captures stills to JPEG, generates cryptographic signatures via hardware-linked identity (`OpenVeilSigner`), and publishes to Nostr via Blossom and relays.
+- `deploy.sh`: Deploys and builds `OpenVeilCam` from your development environment to a Raspberry Pi over SSH.
 
 ## Prerequisites
 
@@ -38,7 +41,7 @@ cargo run
 Capture uses the Pi’s standard still capture CLI (`rpicam-still` on `PATH`, e.g. from Raspberry Pi OS `rpicam-apps` / `libcamera-apps`).
 
 1. **Detect cameras** — Lists cameras and parses the tool’s output.
-2. **Capture** — Writes a JPEG to `/tmp/nostreye_capture.jpg` (1920×1080, quality 95).
+2. **Capture** — Writes a JPEG to `/tmp/OpenVeilCam_capture.jpg` (1920×1080, quality 95).
 3. **Device identity** — Initialises hardware-linked identity (secp256k1) using `device-signer`.
 4. **Profile (kind 0)** — Signs and broadcasts a metadata event so your npub shows a profile (name, display_name, about) across Nostr clients. Sent first so relays have the profile before any other events.
 5. **Frame integrity** — Computes ECDSA signature over the JPEG bytes (attestation).
@@ -52,7 +55,7 @@ Capture uses the Pi’s standard still capture CLI (`rpicam-still` on `PATH`, e.
 Copy from the Pi to your machine:
 
 ```bash
-scp user@<rpi-ip>:/tmp/nostreye_capture.jpg .
+scp user@<rpi-ip>:/tmp/OpenVeilCam_capture.jpg .
 ```
 
 ### Viewing in Nostr clients
