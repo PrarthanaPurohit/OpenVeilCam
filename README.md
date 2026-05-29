@@ -4,6 +4,11 @@
 
 `OpenVeilCam` captures images from a Raspberry Pi camera and integrates them with the Nostr protocol. It signs events and frame data, then publishes images to Nostr relays.
 
+<img width="1917" height="857" alt="Image" src="https://github.com/user-attachments/assets/b72174b0-a326-46ad-a4ab-741baaa1cafa" />
+
+<img width="1918" height="853" alt="Image" src="https://github.com/user-attachments/assets/14742acb-9d38-443b-8576-c809ad18f5c5" />
+
+<img width="1912" height="856" alt="Image" src="https://github.com/user-attachments/assets/c4a2df72-b8fe-49ef-b2ff-574563c57e4f" />
 
 ## Project Structure
 
