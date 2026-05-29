@@ -912,25 +912,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nostreye-cam"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64",
- "device-signer",
- "futures-util",
- "hex",
- "nostr",
- "reqwest",
- "serde_json",
- "sha2",
- "tokio",
- "tokio-tungstenite",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "nu-ansi-term"
 version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -950,6 +931,25 @@ name = "opaque-debug"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
+
+[[package]]
+name = "openveil-cam"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "device-signer",
+ "futures-util",
+ "hex",
+ "nostr",
+ "reqwest",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "option-ext"

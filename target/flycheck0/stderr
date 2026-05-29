@@ -1,0 +1,87 @@
+   2.248457700s  INFO prepare_target{force=false package_id=openveil-cam v0.1.0 (\\wsl.localhost\Ubuntu\home\prarthana\nostreye) target="openveil-cam"}: cargo::core::compiler::fingerprint: fingerprint error for openveil-cam v0.1.0 (\\wsl.localhost\Ubuntu\home\prarthana\nostreye)/Check { test: false }/TargetInner { name: "openveil-cam", doc: true, ..: with_path("\\\\wsl.localhost\\Ubuntu\\home\\prarthana\\nostreye\\src\\main.rs", Edition2021) }
+   2.248523000s  INFO prepare_target{force=false package_id=openveil-cam v0.1.0 (\\wsl.localhost\Ubuntu\home\prarthana\nostreye) target="openveil-cam"}: cargo::core::compiler::fingerprint:     err: failed to read `\\wsl.localhost\Ubuntu\home\prarthana\nostreye\target\debug\.fingerprint\openveil-cam-0ac3bc5fcb3cdf75\bin-openveil-cam`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_repo
+   6: git_filter_source_repo
+   7: git_filter_source_repo
+   8: git_filter_source_repo
+   9: git_filter_source_repo
+  10: git_filter_source_repo
+  11: git_libgit2_prerelease
+  12: <unknown>
+  13: <unknown>
+  14: <unknown>
+  15: <unknown>
+  16: git_midx_writer_dump
+  17: git_filter_source_repo
+  18: git_midx_writer_dump
+  19: BaseThreadInitThunk
+  20: RtlUserThreadStart
+   2.307477300s  INFO prepare_target{force=false package_id=device-signer v0.1.1 target="device_signer"}: cargo::core::compiler::fingerprint: fingerprint error for device-signer v0.1.1/Check { test: false }/TargetInner { ..: lib_target("device_signer", ["lib"], "C:\\Users\\prart\\.cargo\\registry\\src\\index.crates.io-1949cf8c6b5b557f\\device-signer-0.1.1\\src\\lib.rs", Edition2021) }
+   2.307522600s  INFO prepare_target{force=false package_id=device-signer v0.1.1 target="device_signer"}: cargo::core::compiler::fingerprint:     err: failed to read `\\wsl.localhost\Ubuntu\home\prarthana\nostreye\target\debug\.fingerprint\device-signer-45b144c776ad0034\lib-device_signer`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_repo
+   6: git_filter_source_repo
+   7: git_filter_source_repo
+   8: git_filter_source_repo
+   9: git_filter_source_repo
+  10: git_filter_source_repo
+  11: git_filter_source_repo
+  12: git_libgit2_prerelease
+  13: <unknown>
+  14: <unknown>
+  15: <unknown>
+  16: <unknown>
+  17: git_midx_writer_dump
+  18: git_filter_source_repo
+  19: git_midx_writer_dump
+  20: BaseThreadInitThunk
+  21: RtlUserThreadStart
+   4.851054200s  INFO prepare_target{force=false package_id=openveil-cam v0.1.0 (\\wsl.localhost\Ubuntu\home\prarthana\nostreye) target="openveil-cam"}: cargo::core::compiler::fingerprint: fingerprint error for openveil-cam v0.1.0 (\\wsl.localhost\Ubuntu\home\prarthana\nostreye)/Check { test: true }/TargetInner { name: "openveil-cam", doc: true, ..: with_path("\\\\wsl.localhost\\Ubuntu\\home\\prarthana\\nostreye\\src\\main.rs", Edition2021) }
+   4.851179600s  INFO prepare_target{force=false package_id=openveil-cam v0.1.0 (\\wsl.localhost\Ubuntu\home\prarthana\nostreye) target="openveil-cam"}: cargo::core::compiler::fingerprint:     err: failed to read `\\wsl.localhost\Ubuntu\home\prarthana\nostreye\target\debug\.fingerprint\openveil-cam-97f2111105ce13f5\test-bin-openveil-cam`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_repo
+   6: git_filter_source_repo
+   7: git_filter_source_repo
+   8: git_filter_source_repo
+   9: git_filter_source_repo
+  10: git_filter_source_repo
+  11: git_libgit2_prerelease
+  12: <unknown>
+  13: <unknown>
+  14: <unknown>
+  15: <unknown>
+  16: git_midx_writer_dump
+  17: git_filter_source_repo
+  18: git_midx_writer_dump
+  19: BaseThreadInitThunk
+  20: RtlUserThreadStart
+    Checking device-signer v0.1.1
+error: could not compile `device-signer` (lib) due to 1 previous error

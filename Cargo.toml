@@ -1,12 +1,13 @@
 [package]
-name = "nostreye-cam"
+name = "openveil-cam"
 version = "0.1.0"
 edition = "2021"
 description = "Camera operations + Nostr event signing on Raspberry Pi"
-authors = ["prarthana"]
+authors = ["Prarthana Purohit"]
+license = "MIT"
 
 [[bin]]
-name = "nostreye-cam"
+name = "openveil-cam"
 path = "src/main.rs"
 
 [dependencies]
