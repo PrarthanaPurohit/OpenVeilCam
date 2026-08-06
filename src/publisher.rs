@@ -5,6 +5,7 @@ use sha2::Digest;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{info, warn};
 
+use crate::canon;
 use crate::signer::{NostreyeSigner, SignedEvent};
 
 /// Public Blossom server and Nostr relays used by default.
@@ -41,44 +42,69 @@ pub async fn broadcast_event(event: &SignedEvent, relays: &[&str]) -> Vec<(Strin
     results
 }
 
-/// Upload `jpeg_data` to Blossom, sign a NIP-94 (kind 1063) event with the
-/// image URL + ECDSA attestation, then broadcast to `relays`.
+/// Upload `jpeg_data` to Blossom, sign a NIP-80 `kind:1080` Capture
+/// Attestation, a NIP-94 (`kind:1063`) event pointing at it via `imeta`, and
+/// a plain `kind:1` note, then broadcast all three to `relays`.
 pub async fn publish_image(
     jpeg_data: &[u8],
-    ecdsa_sig: &str,
-    width: u32,
-    height: u32,
     signer: &NostreyeSigner,
     blossom_server: &str,
     relays: &[&str],
 ) -> Result<PublishResult> {
-    // SHA-256 of the file — used for `x` tag and Blossom auth
-    let sha256_hex = {
+    // SHA-256 of the exact encoded bytes — NIP-80 `file` hash, NIP-94 `x` tag,
+    // and Blossom auth all key off this.
+    let file_hash: [u8; 32] = {
         let mut h = sha2::Sha256::new();
         h.update(jpeg_data);
-        hex::encode(h.finalize())
+        h.finalize().into()
     };
+    let file_hash_hex = hex::encode(file_hash);
+
+    // NIP-80 `px1` canonical hash — keys off decoded pixel content, not
+    // container bytes.
+    let canon = canon::canonicalize_px1(jpeg_data).context("px1 canonicalization failed")?;
+    let canonical_hash: [u8; 32] = hex::decode(&canon.hash_hex)
+        .context("invalid canonical hash hex")?
+        .try_into()
+        .map_err(|_| anyhow!("canonical hash was not 32 bytes"))?;
 
     // Build Blossom auth event (kind 24242) and upload
-    let auth_json = signer.sign_blossom_auth(&sha256_hex, jpeg_data.len() as u64)?;
+    let auth_json = signer.sign_blossom_auth(&file_hash_hex, jpeg_data.len() as u64)?;
     let auth_b64 = B64.encode(auth_json.as_bytes());
 
     info!("Uploading {} bytes to {}", jpeg_data.len(), blossom_server);
     let image_url = upload_to_blossom(jpeg_data, &auth_b64, blossom_server).await?;
     info!("Blossom upload OK → {}", image_url);
 
-    // Build NIP-94 (kind 1063) event
-    let content = format!(
-        "📷 nostreye capture — ECDSA attestation: {}…",
-        &ecdsa_sig[..32.min(ecdsa_sig.len())]
-    );
+    // NIP-80 kind:1080 Capture Attestation
+    let attestation = signer.sign_capture_attestation(
+        &canonical_hash,
+        &file_hash,
+        canon::C14N_PX1,
+        "image/jpeg",
+        Some((canon.width, canon.height)),
+        std::slice::from_ref(&image_url),
+    )?;
+    info!("NIP-80 kind:1080 capture attestation signed: {}", attestation.id);
+
+    // NIP-94 (kind 1063) event, pointing at the attestation via `imeta`
+    // (NIP-92 imeta: one tag, each subsequent element a "key value" string).
+    let imeta_tag = vec![
+        "imeta".to_string(),
+        format!("url {}", image_url),
+        "m image/jpeg".to_string(),
+        format!("x {}", file_hash_hex),
+        format!("dim {}x{}", canon.width, canon.height),
+        format!("attestation {}", attestation.id),
+    ];
+    let content = "📷 nostreye capture".to_string();
     let tags = vec![
         vec!["url".to_string(), image_url.clone()],
         vec!["m".to_string(), "image/jpeg".to_string()],
-        vec!["x".to_string(), sha256_hex],
+        vec!["x".to_string(), file_hash_hex.clone()],
         vec!["size".to_string(), jpeg_data.len().to_string()],
-        vec!["dim".to_string(), format!("{}x{}", width, height)],
-        vec!["ecdsa-attestation".to_string(), ecdsa_sig.to_string()],
+        vec!["dim".to_string(), format!("{}x{}", canon.width, canon.height)],
+        imeta_tag,
     ];
     let nip94 = signer.sign_event(1063, &content, tags)?;
     info!("NIP-94 event signed: {}", nip94.id);
@@ -88,11 +114,18 @@ pub async fn publish_image(
     let note = signer.sign_event(1, &note_content, vec![])?;
     info!("Kind 1 image post signed: {}", note.id);
 
-    // Broadcast both kind 1 and kind 1063
+    // Broadcast kind:1080, kind:1063, and kind:1
+    let r_attestation = broadcast_event(&attestation, relays).await;
     let r1 = broadcast_event(&note, relays).await;
     let r2 = broadcast_event(&nip94, relays).await;
-    // Use kind 1 results for display (both should match; take first)
-    let relay_results = if !r1.is_empty() { r1 } else { r2 };
+    // Use kind 1 results for display (all three should match; take first non-empty)
+    let relay_results = if !r1.is_empty() {
+        r1
+    } else if !r_attestation.is_empty() {
+        r_attestation
+    } else {
+        r2
+    };
 
     Ok(PublishResult { image_url, relay_results })
 }

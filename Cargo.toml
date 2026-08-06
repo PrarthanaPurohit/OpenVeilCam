@@ -31,6 +31,8 @@ anyhow = "1"
 sha2 = "0.10"
 hex = "0.4"
 serde_json = "1"
+# Image decoding for NIP-80 `px1` media canonicalization
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 # HTTP client (rustls avoids OpenSSL on RPi)
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 

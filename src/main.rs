@@ -1,4 +1,5 @@
 mod camera;
+mod canon;
 mod publisher;
 mod signer;
 
@@ -11,6 +12,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 
 const CAPTURE_PATH: &str = "/tmp/nostreye_capture.jpg";
 const PROFILE_SENT_FLAG: &str = "/home/prarthana/.hardware_identity/.profile_published";
+const ANNOUNCEMENT_SENT_FLAG: &str = "/home/prarthana/.hardware_identity/.announcement_published";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -67,6 +69,29 @@ async fn main() -> Result<()> {
         println!("└────────────────────────────────────────────────────┘\n");
         if ok_count > 0 {
             let _ = std::fs::write(PROFILE_SENT_FLAG, profile_results.len().to_string());
+        }
+    }
+
+    if std::path::Path::new(ANNOUNCEMENT_SENT_FLAG).exists() {
+        println!("┌─ Device Announcement (kind 11080, NIP-80) ───────────┐");
+        println!("│  Already published on first run — skipping.");
+        println!("└────────────────────────────────────────────────────┘\n");
+    } else {
+        info!("First run — publishing NIP-80 device announcement (kind 11080)…");
+        let model = cameras.first().map(|c| c.id.as_str());
+        let announcement = signer.sign_device_announcement(model)?;
+        let announcement_results =
+            publisher::broadcast_event(&announcement, publisher::RELAYS).await;
+        let ok_count = announcement_results.iter().filter(|(_, a)| *a).count();
+        println!("┌─ Device Announcement (kind 11080, NIP-80) ───────────┐");
+        println!(
+            "│  Broadcast to {} relays: {} accepted",
+            announcement_results.len(),
+            ok_count
+        );
+        println!("└────────────────────────────────────────────────────┘\n");
+        if ok_count > 0 {
+            let _ = std::fs::write(ANNOUNCEMENT_SENT_FLAG, announcement_results.len().to_string());
         }
     }
 
@@ -136,21 +161,10 @@ async fn capture_and_publish(signer: &signer::NostreyeSigner, camera_index: usiz
     );
 
     let jpeg = std::fs::read(CAPTURE_PATH)?;
-    info!("Computing ECDSA integrity signature…");
-    let ecdsa_sig = signer.sign_frame_hash(&jpeg)?;
-    println!("│  ECDSA sig : {}…", &ecdsa_sig[..32.min(ecdsa_sig.len())]);
 
-    println!("┌─ Publishing to Nostr ───────────────────────────────┐");
-    match publisher::publish_image(
-        &jpeg,
-        &ecdsa_sig,
-        fi.width,
-        fi.height,
-        signer,
-        publisher::BLOSSOM_SERVER,
-        publisher::RELAYS,
-    )
-    .await
+    println!("┌─ Publishing to Nostr (NIP-80) ───────────────────────┐");
+    match publisher::publish_image(&jpeg, signer, publisher::BLOSSOM_SERVER, publisher::RELAYS)
+        .await
     {
         Ok(result) => {
             println!("│  Image URL : {}", result.image_url);

@@ -1,8 +1,8 @@
 set -e
 
-RPI="prarthana@100.84.189.63"
+RPI="prarthana@192.168.29.167"
 REMOTE_DIR="~/nostreye-cam"
-LOCAL_DIR="$(dirname "$0")/nostreye-cam"
+LOCAL_DIR="$(dirname "$0")"
 
 echo "==> Checking RPi environment..."
 ssh "$RPI" "
@@ -27,6 +27,7 @@ echo "==> Copying files to RPi..."
 scp "$LOCAL_DIR/Cargo.toml"          "$RPI:$REMOTE_DIR/"
 scp "$LOCAL_DIR/src/main.rs"         "$RPI:$REMOTE_DIR/src/"
 scp "$LOCAL_DIR/src/camera.rs"       "$RPI:$REMOTE_DIR/src/"
+scp "$LOCAL_DIR/src/canon.rs"        "$RPI:$REMOTE_DIR/src/"
 scp "$LOCAL_DIR/src/signer.rs"       "$RPI:$REMOTE_DIR/src/"
 scp "$LOCAL_DIR/src/publisher.rs"    "$RPI:$REMOTE_DIR/src/"
 
