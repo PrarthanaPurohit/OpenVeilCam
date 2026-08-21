@@ -1,0 +1,9 @@
+# Rust build artifacts
+/target/
+
+# Runtime logs and capture output
+*.log
+nostreye_capture.jpg
+
+# OS / editor cruft
+.DS_Store
