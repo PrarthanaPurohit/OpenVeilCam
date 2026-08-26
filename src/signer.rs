@@ -330,13 +330,23 @@ impl NostreyeSigner {
 
     /// Verify that a [`SignedEvent`]'s `sig` was produced by its claimed
     pub fn verify_event(event: &SignedEvent) -> Result<bool> {
+        // Tags are part of the NIP-01 id commitment, so they have to be read
+        // back off the event. Assuming an empty tag array here made this
+        // return `false` for every tagged event — i.e. every NIP-94 record.
+        let parsed: serde_json::Value =
+            serde_json::from_str(&event.json).context("SignedEvent.json was not valid JSON")?;
+        let tags = parsed
+            .get("tags")
+            .cloned()
+            .unwrap_or_else(|| serde_json::Value::Array(vec![]));
+
         // Recompute event ID commitment
         let commitment = serde_json::json!([
             0,
             event.pubkey,
             event.created_at,
             event.kind,
-            serde_json::Value::Array(vec![]),
+            tags,
             event.content,
         ]);
         let commitment_str = serde_json::to_string(&commitment)?;

@@ -73,7 +73,7 @@ pub async fn publish_image(
     let auth_b64 = B64.encode(auth_json.as_bytes());
 
     info!("Uploading {} bytes to {}", jpeg_data.len(), blossom_server);
-    let image_url = upload_to_blossom(jpeg_data, &auth_b64, blossom_server).await?;
+    let image_url = upload_to_blossom(jpeg_data, &auth_b64, blossom_server, "image/jpeg").await?;
     info!("Blossom upload OK → {}", image_url);
 
     // NIP-80 kind:1080 Capture Attestation
@@ -130,8 +130,13 @@ pub async fn publish_image(
     Ok(PublishResult { image_url, relay_results })
 }
 
-/// PUT the JPEG bytes to a Blossom server and return the URL.
-async fn upload_to_blossom(data: &[u8], auth_b64: &str, server: &str) -> Result<String> {
+/// PUT arbitrary bytes to a Blossom server and return the URL.
+pub async fn upload_to_blossom(
+    data: &[u8],
+    auth_b64: &str,
+    server: &str,
+    mime: &str,
+) -> Result<String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
         .build()?;
@@ -140,7 +145,7 @@ async fn upload_to_blossom(data: &[u8], auth_b64: &str, server: &str) -> Result<
     let resp = client
         .put(&url)
         .header("Authorization", format!("Nostr {}", auth_b64))
-        .header("Content-Type", "image/jpeg")
+        .header("Content-Type", mime)
         .body(data.to_vec())
         .send()
         .await

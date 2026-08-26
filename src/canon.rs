@@ -129,4 +129,52 @@ mod tests {
         assert_eq!(a.width, 2);
         assert_eq!(a.height, 1);
     }
+
+    /// px1's actual guarantee, stated as a test so it cannot quietly drift.
+    ///
+    /// It binds the *decoded raster*, so re-wrapping the same pixels in a
+    /// different lossless container leaves the hash alone — that is what makes
+    /// it survive EXIF/ICC stripping. It says nothing about lossy re-encoding:
+    /// a JPEG pass changes pixels and therefore changes the hash. Anything
+    /// claiming to survive platform re-compression needs a perceptual hash or
+    /// a watermark, which px1 is not.
+    #[test]
+    fn px1_binds_pixels_not_containers() {
+        let mut img = image::RgbImage::new(8, 8);
+        for (x, y, px) in img.enumerate_pixels_mut() {
+            *px = image::Rgb([(x * 32) as u8, (y * 32) as u8, 128]);
+        }
+        let dynamic = image::DynamicImage::ImageRgb8(img);
+
+        let encode = |fmt: image::ImageFormat| {
+            let mut buf = Vec::new();
+            dynamic
+                .write_to(&mut std::io::Cursor::new(&mut buf), fmt)
+                .unwrap();
+            buf
+        };
+
+        let png_once = encode(image::ImageFormat::Png);
+        let png_twice = {
+            // Decode and re-encode losslessly: different bytes, same raster.
+            let decoded = image::load_from_memory(&png_once).unwrap();
+            let mut buf = Vec::new();
+            decoded
+                .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+                .unwrap();
+            buf
+        };
+
+        let a = canonicalize_px1(&png_once).unwrap();
+        let b = canonicalize_px1(&png_twice).unwrap();
+        assert_eq!(a.hash_hex, b.hash_hex, "lossless re-wrap must preserve px1");
+
+        // Lossy re-encode: px1 does NOT survive, by design and by arithmetic.
+        let jpeg = encode(image::ImageFormat::Jpeg);
+        let c = canonicalize_px1(&jpeg).unwrap();
+        assert_ne!(
+            a.hash_hex, c.hash_hex,
+            "JPEG re-encode changes pixels, so px1 is expected to differ"
+        );
+    }
 }

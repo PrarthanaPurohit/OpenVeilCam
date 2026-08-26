@@ -1,7 +1,4 @@
-mod camera;
-mod canon;
-mod publisher;
-mod signer;
+use openveil_cam::{c2pa_sign, camera, canon, publisher, signer};
 
 use anyhow::Result;
 use std::io::Write;
@@ -11,6 +8,9 @@ use tracing_subscriber::EnvFilter;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 const CAPTURE_PATH: &str = "/tmp/nostreye_capture.jpg";
+/// The capture after a C2PA manifest is embedded. This, not [`CAPTURE_PATH`],
+/// is what gets uploaded and published — it is the one carrying the credential.
+const SIGNED_PATH: &str = "/tmp/nostreye_capture_c2pa.jpg";
 const PROFILE_SENT_FLAG: &str = "/home/prarthana/.hardware_identity/.profile_published";
 const ANNOUNCEMENT_SENT_FLAG: &str = "/home/prarthana/.hardware_identity/.announcement_published";
 
@@ -43,11 +43,25 @@ async fn main() -> Result<()> {
     let camera_label = cameras
         .first()
         .map(|c| format!("cam-{}", &c.id.chars().take(12).collect::<String>()));
-    let signer = signer::NostreyeSigner::new(camera_label)?;
+    let signer = signer::NostreyeSigner::new(camera_label.clone())?;
 
     println!("┌─ Device Identity ──────────────────────────────────┐");
     println!("│  npub   : {}", signer.npub());
     println!("│  pubkey : {}", signer.pubkey_hex());
+    println!("└────────────────────────────────────────────────────┘\n");
+
+    // The C2PA credential identity: a second, P-256 key derived from the same
+    // hardware entropy, because C2PA does not permit secp256k1. Set up once at
+    // startup so a capture never pays for certificate minting.
+    let c2pa_identity = c2pa_sign::C2paIdentity::load_or_create(
+        &c2pa_sign::default_identity_dir(),
+        camera_label,
+        signer.npub(),
+    )?;
+    println!("┌─ C2PA Credential Identity ─────────────────────────┐");
+    println!("│  alg    : ES256 (P-256), derived from device entropy");
+    println!("│  subject: {}", signer.npub());
+    println!("│  trust  : self-signed — Valid, not C2PA trust-listed");
     println!("└────────────────────────────────────────────────────┘\n");
 
     if std::path::Path::new(PROFILE_SENT_FLAG).exists() {
@@ -100,6 +114,7 @@ async fn main() -> Result<()> {
     println!("           quit | exit             — leave\n");
 
     let camera_index = cameras.first().map(|c| c.index).unwrap_or(0);
+    let camera_model = cameras.first().map(|c| c.id.clone());
     let have_camera = !cameras.is_empty();
 
     let mut stdin = BufReader::new(tokio::io::stdin());
@@ -137,7 +152,14 @@ async fn main() -> Result<()> {
                     println!("[!] No camera — cannot capture.\n");
                     continue;
                 }
-                if let Err(e) = capture_and_publish(&signer, camera_index).await {
+                if let Err(e) = capture_and_publish(
+                    &signer,
+                    &c2pa_identity,
+                    camera_index,
+                    camera_model.as_deref(),
+                )
+                .await
+                {
                     error!("Capture/publish failed: {:#}", e);
                     println!("[!] {}\n", e);
                 }
@@ -152,7 +174,12 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn capture_and_publish(signer: &signer::NostreyeSigner, camera_index: usize) -> Result<()> {
+async fn capture_and_publish(
+    signer: &signer::NostreyeSigner,
+    c2pa_identity: &c2pa_sign::C2paIdentity,
+    camera_index: usize,
+    camera_model: Option<&str>,
+) -> Result<()> {
     info!("Capturing frame → {}", CAPTURE_PATH);
     let fi = camera::capture_frame(camera_index, CAPTURE_PATH)?;
     println!(
@@ -162,9 +189,49 @@ async fn capture_and_publish(signer: &signer::NostreyeSigner, camera_index: usiz
 
     let jpeg = std::fs::read(CAPTURE_PATH)?;
 
+    // Credential the frame before anything else touches it. px1 is computed
+    // from the original, but a manifest is a metadata box rather than a pixel
+    // edit, so the same hash describes the signed asset too.
+    let px1 = canon::canonicalize_px1(&jpeg)?;
+    let info = c2pa_sign::CaptureInfo {
+        npub: signer.npub(),
+        pubkey_hex: signer.pubkey_hex(),
+        camera_model,
+        px1_hash: &px1.hash_hex,
+        width: px1.width,
+        height: px1.height,
+    };
+
+    // A field camera that publishes nothing is worse than one that publishes
+    // an uncredentialed frame, so a signing failure degrades instead of
+    // aborting — but it says so loudly, because the credential is the point.
+    let to_publish = match c2pa_sign::sign_capture(&jpeg, &info, c2pa_identity) {
+        Ok(signed) => {
+            std::fs::write(SIGNED_PATH, &signed)?;
+            println!(
+                "✓  C2PA credential embedded ({} → {} bytes) → {}",
+                jpeg.len(),
+                signed.len(),
+                SIGNED_PATH
+            );
+            signed
+        }
+        Err(e) => {
+            error!("C2PA signing failed: {:#}", e);
+            println!("[!] C2PA signing FAILED: {e}");
+            println!("[!] Publishing this frame WITHOUT Content Credentials.");
+            jpeg
+        }
+    };
+
     println!("┌─ Publishing to Nostr (NIP-80) ───────────────────────┐");
-    match publisher::publish_image(&jpeg, signer, publisher::BLOSSOM_SERVER, publisher::RELAYS)
-        .await
+    match publisher::publish_image(
+        &to_publish,
+        signer,
+        publisher::BLOSSOM_SERVER,
+        publisher::RELAYS,
+    )
+    .await
     {
         Ok(result) => {
             println!("│  Image URL : {}", result.image_url);
