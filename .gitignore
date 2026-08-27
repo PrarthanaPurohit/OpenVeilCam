@@ -7,3 +7,4 @@ nostreye_capture.jpg
 
 # OS / editor cruft
 .DS_Store
+target/

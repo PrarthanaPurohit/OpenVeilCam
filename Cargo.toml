@@ -5,6 +5,9 @@ edition = "2021"
 description = "Camera operations + Nostr event signing on Raspberry Pi"
 authors = ["Prarthana Purohit"]
 license = "MIT"
+# Two binaries ship from this crate; name the one a bare `cargo run` should
+# pick, so the camera app stays the default and `c2pa-bridge` is opt-in.
+default-run = "openveil-cam"
 
 [[bin]]
 name = "openveil-cam"
@@ -42,3 +45,13 @@ futures-util = "0.3"
 
 # Base64 encoding for Blossom auth header
 base64 = "0.22"
+c2pa = { version = "0.90.15", features = ["file_io"] }
+
+# C2PA signing identity. The C2PA spec does not permit secp256k1, so the
+# credential key is a separate P-256 key derived (via hkdf) from the same
+# hardware entropy as the Nostr key. openssl is already in the tree via c2pa;
+# it mints the self-signed X.509 cert that key needs.
+p256 = { version = "0.13", features = ["pkcs8"] }
+hkdf = "0.12"
+openssl = "0.10"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
