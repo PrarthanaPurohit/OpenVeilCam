@@ -1,0 +1,20 @@
+# Normalise text files in the repository, checked out per-platform.
+* text=auto eol=lf
+
+# The Gradle wrapper script is executed by /bin/sh on Linux and macOS CI runners.
+# CRLF endings make it fail with a confusing "bad interpreter" error, so pin LF.
+gradlew text eol=lf
+*.sh text eol=lf
+
+# Windows-only scripts keep CRLF.
+gradlew.bat text eol=crlf
+*.bat text eol=crlf
+
+# Binary assets must never be line-ending converted.
+*.ttf binary
+*.png binary
+*.jpg binary
+*.jar binary
+*.aar binary
+*.keystore binary
+*.jks binary
