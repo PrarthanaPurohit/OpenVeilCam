@@ -1,0 +1,115 @@
+# Cuts a GitHub Release on every push to the default branch.
+#
+# Structured as one build job per platform feeding a single collecting release job, so
+# adding iOS, desktop or web later means adding a job and one line to `needs` — not
+# restructuring the pipeline. Only Android is implemented today; the others are stubs in
+# the roadmap (see README.md).
+name: Release
+
+on:
+  push:
+    branches: [main, master]
+  # Allows cutting a build by hand without an empty commit.
+  workflow_dispatch:
+
+concurrency:
+  # Releases must not race each other: two concurrent runs would fight over the tag.
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # required to create the release and push its tag
+
+jobs:
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Derive version
+        id: version
+        run: |
+          # awk, not sed: no backslash escapes to be mangled, and no
+          # dependency on GNU grep -P, which macOS runners lack.
+          BASE=$(awk -F'"' '/^openveil = /{print $2; exit}' gradle/libs.versions.toml)
+          BASE=${BASE:-0.1.0}
+          echo "version=${BASE}-build.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate development C2PA signing identity
+        run: bash tools/generate-dev-cert.sh
+
+      - name: Run unit tests
+        run: ./gradlew :shared:testAndroidHostTest --no-daemon
+
+      - name: Build Android APK
+        run: ./gradlew :androidApp:assembleDebug --no-daemon
+
+      - name: Verify 16 KB page alignment of native libraries
+        run: python3 tools/check_16kb_alignment.py androidApp/build/outputs/apk/debug/androidApp-debug.apk
+
+      - name: Name the artifact after its version
+        run: |
+          mkdir -p dist
+          cp androidApp/build/outputs/apk/debug/androidApp-debug.apk \
+             "dist/openveil-${{ steps.version.outputs.version }}-android.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/*.apk
+          retention-days: 14
+
+  # --- Not yet implemented. Each becomes a job here and an entry in `release.needs`. ---
+  # ios:      runs-on: macos-latest   -> .ipa   (needs the AVFoundation camera + c2pa-swift)
+  # desktop:  runs-on: ubuntu-latest  -> .jar / native distributions
+  # web:      runs-on: ubuntu-latest  -> wasmJs bundle
+
+  release:
+    name: Publish release
+    needs: [android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Collect platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.android.outputs.version }}
+          name: OpenVeil ${{ needs.android.outputs.version }}
+          # Marked pre-release deliberately: this is a proof of concept signing with a
+          # development certificate, and the APK is debug-signed. See the body below.
+          prerelease: true
+          generate_release_notes: true
+          files: dist/*
+          body: |
+            Automated build from `${{ github.sha }}`.
+
+            **This is a proof-of-concept build. Two limitations matter before you trust it:**
+
+            - The APK is **debug-signed**, so it is for sideloading and review only, not
+              for Google Play. You may need to uninstall a previous copy before installing.
+            - Content Credentials are signed with a **generated development certificate**
+              that chains to no recognised authority. Validators will report captures as
+              *Valid* but not *Trusted*: the tamper-evidence is real and verifiable, but
+              nothing vouches for who signed. See `docs/SECURITY.md`.
+
+            Every build is checked for 16 KB page alignment and runs the full unit suite,
+            including the NIP-01 event-id, BIP-340 Schnorr and NIP-19 vectors.
