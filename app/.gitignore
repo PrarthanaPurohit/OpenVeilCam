@@ -1,0 +1,43 @@
+# --- Build output ---
+.gradle/
+build/
+.kotlin/
+*.hprof
+captures/
+
+# --- Local machine configuration ---
+# Points at this machine's Android SDK. Every developer has their own.
+local.properties
+
+# --- IDE ---
+.idea/
+*.iml
+xcuserdata/
+*.xcuserstate
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- C2PA development signing identity ---
+# Both halves are generated together and must stay a matched pair, so neither is
+# committed: a tracked certificate with an untracked key is worse than neither, because
+# it looks usable and is not. A fresh clone therefore has no signing identity until
+# `bash tools/generate-dev-cert.sh` is run, which is deliberate -- see docs/SECURITY.md.
+shared/src/androidMain/resources/c2pa/dev_signing_key.pem
+shared/src/androidMain/resources/c2pa/dev_signing_cert.pem
+
+# --- Release signing ---
+# Never commit a keystore or its passwords. CI injects these from encrypted secrets.
+*.jks
+*.keystore
+keystore.properties
+
+# --- Local agent/tooling settings ---
+.claude/settings.local.json
+
+# --- Font tooling caches ---
+# Re-downloaded on demand by tools/subset_icons.py and tools/build_text_fonts.py.
+# The subset outputs in composeResources/font/ ARE committed; these inputs are not.
+tools/.fontcache/
+tools/.codepoints.cache
