@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app is dark-only by design (see the OpenVeil palette). Setting the window
+         background here avoids a white flash before Compose draws its first frame. -->
+    <style name="Theme.OpenVeil" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/openveil_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

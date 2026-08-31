@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors OpenVeilColors.Background in commonMain. Kept in sync by hand; this value
+         exists only so the launch window matches the first Compose frame. -->
+    <color name="openveil_background">#13121B</color>
+</resources>
