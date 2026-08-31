@@ -29,9 +29,6 @@ came off the sensor.
   <em>Home · capture · review · publish · confirmation</em>
 </p>
 
-<details>
-<summary><strong>Photo details — what a capture carries after publishing</strong></summary>
-<br />
 <p align="center">
   <img src="docs/images/06-details.jpg"     height="420" alt="Photo details screen: capture metadata, Content Credentials verdict, Blossom and Nostr publication status, and nevent and nprofile links" />
   <img src="docs/images/07-credentials.jpg" height="420" alt="Close-up of the Content Credentials verdict, stating that the signature matches the file but the certificate is not on a recognised trust list" />
@@ -41,7 +38,6 @@ came off the sensor.
 <p align="center">
   <em>The full details screen · the credential verdict, stated without overclaiming · every hash and identifier, copyable</em>
 </p>
-</details>
 
 ---
 
