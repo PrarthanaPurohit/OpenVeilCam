@@ -18,11 +18,12 @@ came off the sensor.
 > [Current limitations](#current-limitations).
 
 <p align="center">
-  <img src="docs/images/01-home.png"      width="19%" alt="Home screen showing device identity status" />
-  <img src="docs/images/02-camera.png"    width="19%" alt="Camera viewfinder" />
-  <img src="docs/images/03-review.png"    width="19%" alt="Review screen before publishing" />
-  <img src="docs/images/04-published.png" width="19%" alt="Confirmation that the photo was published" />
-  <img src="docs/images/05-details.png"   width="19%" alt="Photo details with verification links" />
+  <img src="docs/images/01-home.jpg"       width="16%" alt="Home screen showing device identity status" />
+  <img src="docs/images/02-camera.jpg"     width="16%" alt="Camera viewfinder" />
+  <img src="docs/images/03-review.jpg"     width="16%" alt="Review screen before publishing" />
+  <img src="docs/images/04-publishing.jpg" width="16%" alt="Publishing progress" />
+  <img src="docs/images/05-published.jpg"  width="16%" alt="Confirmation that the photo was published" />
+  <img src="docs/images/06-details.jpg"    width="16%" alt="Photo details with verification links" />
 </p>
 
 ---
