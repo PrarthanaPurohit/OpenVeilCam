@@ -1,4 +1,7 @@
-# OpenVeil
+# OpenVeil App
+
+*The Kotlin Multiplatform client. For the Raspberry Pi firmware and the project as a
+whole, see the [repository root](../README.md).*
 
 **A camera that proves its photographs were not altered — and publishes that proof where
 no one can quietly withdraw it.**
@@ -132,8 +135,8 @@ vectors or an independent reference implementation.
 Gradle wrapper is sufficient.
 
 ```bash
-git clone https://github.com/PrarthanaPurohit/OpenVeil.git
-cd OpenVeil
+git clone https://github.com/PrarthanaPurohit/OpenVeilCam.git
+cd OpenVeilCam/app
 ```
 
 Generate the development C2PA signing identity. This is deliberately **not** in version
@@ -154,8 +157,9 @@ Then build and test:
 ./gradlew :androidApp:assembleDebug
 ```
 
-The APK lands in `androidApp/build/outputs/apk/debug/`. Prebuilt APKs are attached to every
-[release](../../releases), cut automatically from the default branch.
+The APK lands in `androidApp/build/outputs/apk/debug/`. Prebuilt APKs are attached to every [release](../../../releases) tagged `app-v*`, cut
+automatically when a change under `app/` reaches the default branch. There is one APK
+per architecture; most phones need `arm64-v8a`.
 
 ## Architecture
 
@@ -248,7 +252,7 @@ checks native library alignment on every pull request.
 
 ## License
 
-[MIT](LICENSE).
+[MIT](../LICENSE), covering the whole repository.
 
 [c2pa]: https://c2pa.org/specifications/specifications/2.1/index.html
 [nostr]: https://github.com/nostr-protocol/nostr

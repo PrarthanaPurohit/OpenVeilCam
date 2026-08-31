@@ -2,7 +2,20 @@
 
 [openveil.world](https://openveil.world)
 
-`OpenVeilCam` captures images from a Raspberry Pi camera and integrates them with the Nostr protocol. It signs events and frame data, then publishes images to Nostr relays.
+OpenVeil is a set of cameras that prove their photographs were not altered, and publish
+that proof somewhere no single party can quietly withdraw it. Every capture leaves the
+device carrying a C2PA manifest bound to its exact bytes, is stored content-addressed on
+Blossom, and is announced in a signed NIP-94 event on Nostr relays.
+
+This repository holds two implementations of that idea, sharing one protocol design:
+
+| Component | Platform | |
+|---|---|---|
+| **`openveil-cam`** | Raspberry Pi | Rust. Fixed-install camera. Repository root. |
+| **`app/`** | Android today; iOS, desktop and web planned | Kotlin Multiplatform. See [app/README.md](app/README.md). |
+
+Both publish to the same relays and the same Blossom servers under the same event kinds,
+so a capture from either is discoverable and verifiable the same way.
 
 <img width="1917" height="857" alt="Image" src="https://github.com/user-attachments/assets/b72174b0-a326-46ad-a4ab-741baaa1cafa" />
 
@@ -113,9 +126,29 @@ pinned by `canon::tests::px1_binds_pixels_not_containers`.
 
 ## Project Structure
 
+The Rust crate lives at the repository root; the multiplatform application is a
+self-contained Gradle build under `app/`. They share no build system and are developed
+independently, so `cargo build` at the root behaves exactly as it always has.
+
+```
+.
+├── src/, Cargo.toml, deploy.sh   Raspberry Pi firmware (Rust)
+├── app/                          Kotlin Multiplatform application
+│   ├── shared/                     domain and protocol logic, platform-neutral
+│   ├── composeApp/                 Compose Multiplatform UI
+│   └── androidApp/                 Android host  (iOS, desktop and web to follow)
+└── .github/workflows/            Path-filtered CI: app changes do not trigger
+                                  firmware builds, and vice versa
+```
+
 - `OpenVeilCam`: A Rust application that discovers the Pi camera, captures stills to JPEG, embeds a device-signed C2PA manifest, generates cryptographic signatures via hardware-linked identity (`OpenVeilSigner`), and publishes to Nostr via Blossom and relays.
 - `c2pa-bridge`: Publishes Content Credentials minted by *other* devices. Needs no camera.
 - `deploy.sh`: Deploys and builds `OpenVeilCam` from your development environment to a Raspberry Pi over SSH.
+- `app/`: The handheld client. Same pipeline, same protocol. Signs at the shutter, uploads
+  to Blossom, publishes NIP-94, and can re-verify a capture against its stored bytes on
+  device. Android runs today; the domain layer is already platform-neutral so iOS, desktop
+  and web are additive. Documentation, including how a third party verifies a capture
+  without trusting this project, is in [app/docs/](app/docs/).
 
 ## Prerequisites
 

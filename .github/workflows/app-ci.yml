@@ -2,12 +2,20 @@
 #
 # Deliberately separate from release.yml: this must stay fast and must run on forks,
 # where the release job's write permissions are unavailable.
-name: CI
+name: App CI
 
+# Path-filtered: the Pi firmware and the multiplatform app share a repository but have
+# nothing to build in common, so a firmware-only change should not start a Gradle run.
 on:
   pull_request:
+    paths:
+      - 'app/**'
+      - '.github/workflows/app-*.yml'
   push:
     branches: [main, master]
+    paths:
+      - 'app/**'
+      - '.github/workflows/app-*.yml'
 
 concurrency:
   # A newer commit on the same branch makes an in-flight run obsolete.
@@ -18,6 +26,11 @@ jobs:
   verify:
     name: Build and test
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        # The Kotlin Multiplatform app is a subdirectory; the repository root is the
+        # Rust crate for the Raspberry Pi.
+        working-directory: app
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +42,8 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          build-root-directory: app
 
       # The C2PA signing identity is intentionally not in version control, so it has to
       # be generated before a build that is expected to produce a working APK.
@@ -47,12 +62,17 @@ jobs:
       # Checking the ELF program headers is the same test Play applies, and it fails here
       # rather than at submission time.
       - name: Verify 16 KB page alignment of native libraries
-        run: python3 tools/check_16kb_alignment.py androidApp/build/outputs/apk/debug/androidApp-debug.apk
+        run: |
+          # Every ABI, not just the one this runner happens to prefer.
+          for apk in androidApp/build/outputs/apk/debug/*.apk; do
+            echo "--- $apk"
+            python3 tools/check_16kb_alignment.py "$apk"
+          done
 
       - name: Upload test report on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: test-report
-          path: shared/build/reports/tests/
+          path: app/shared/build/reports/tests/
           retention-days: 7

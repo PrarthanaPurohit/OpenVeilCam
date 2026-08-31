@@ -4,17 +4,22 @@
 # adding iOS, desktop or web later means adding a job and one line to `needs` — not
 # restructuring the pipeline. Only Android is implemented today; the others are stubs in
 # the roadmap (see README.md).
-name: Release
+name: App Release
 
+# Only a change under app/ cuts an app release. Firmware releases, when they exist, get
+# their own workflow and their own tag prefix.
 on:
   push:
     branches: [main, master]
+    paths:
+      - 'app/**'
+      - '.github/workflows/app-release.yml'
   # Allows cutting a build by hand without an empty commit.
   workflow_dispatch:
 
 concurrency:
   # Releases must not race each other: two concurrent runs would fight over the tag.
-  group: release
+  group: release-app
   cancel-in-progress: false
 
 permissions:
@@ -26,6 +31,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+    defaults:
+      run:
+        working-directory: app
     steps:
       - uses: actions/checkout@v4
 
@@ -37,6 +45,8 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          build-root-directory: app
 
       - name: Derive version
         id: version
@@ -57,29 +67,41 @@ jobs:
         run: ./gradlew :androidApp:assembleDebug --no-daemon
 
       - name: Verify 16 KB page alignment of native libraries
-        run: python3 tools/check_16kb_alignment.py androidApp/build/outputs/apk/debug/androidApp-debug.apk
+        run: |
+          for apk in androidApp/build/outputs/apk/debug/*.apk; do
+            echo "--- $apk"
+            python3 tools/check_16kb_alignment.py "$apk"
+          done
 
-      - name: Name the artifact after its version
+      - name: Name the artifacts after their version and architecture
         run: |
           mkdir -p dist
-          cp androidApp/build/outputs/apk/debug/androidApp-debug.apk \
-             "dist/openveil-${{ steps.version.outputs.version }}-android.apk"
+          V="${{ steps.version.outputs.version }}"
+          # One APK per ABI. Most people want arm64-v8a; the rest cover older devices
+          # and emulators.
+          for apk in androidApp/build/outputs/apk/debug/*.apk; do
+            abi=$(basename "$apk" | sed -e 's/^androidApp-//' -e 's/-debug\.apk$//')
+            cp "$apk" "dist/openveil-${V}-android-${abi}.apk"
+          done
+          ls -lh dist
 
       - uses: actions/upload-artifact@v4
         with:
           name: android
-          path: dist/*.apk
+          path: app/dist/*.apk
           retention-days: 14
 
-  # --- Not yet implemented. Each becomes a job here and an entry in `release.needs`. ---
-  # ios:      runs-on: macos-latest   -> .ipa   (needs the AVFoundation camera + c2pa-swift)
-  # desktop:  runs-on: ubuntu-latest  -> .jar / native distributions
+  # --- Not yet implemented. Each becomes a job here and an entry in `release.needs`,
+  #     building a further target of the same Gradle project under app/. ---
+  # ios:      runs-on: macos-latest   -> .ipa   (needs AVFoundation capture + c2pa-swift)
+  # desktop:  runs-on: ubuntu-latest  -> native distributions via Compose Desktop
   # web:      runs-on: ubuntu-latest  -> wasmJs bundle
 
   release:
     name: Publish release
     needs: [android]
     runs-on: ubuntu-latest
+    # Deliberately no working-directory: this job operates on the repository root.
     steps:
       - uses: actions/checkout@v4
 
@@ -92,8 +114,8 @@ jobs:
       - name: Publish
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.android.outputs.version }}
-          name: OpenVeil ${{ needs.android.outputs.version }}
+          tag_name: app-v${{ needs.android.outputs.version }}
+          name: OpenVeil App ${{ needs.android.outputs.version }}
           # Marked pre-release deliberately: this is a proof of concept signing with a
           # development certificate, and the APK is debug-signed. See the body below.
           prerelease: true
@@ -104,12 +126,14 @@ jobs:
 
             **This is a proof-of-concept build. Two limitations matter before you trust it:**
 
-            - The APK is **debug-signed**, so it is for sideloading and review only, not
-              for Google Play. You may need to uninstall a previous copy before installing.
+            - The APKs are **debug-signed**, so they are for sideloading and review only,
+              not for Google Play. You may need to uninstall a previous copy first.
+            - One APK per architecture. **Most phones need `arm64-v8a`.** The `x86`
+              variants exist for emulators.
             - Content Credentials are signed with a **generated development certificate**
               that chains to no recognised authority. Validators will report captures as
               *Valid* but not *Trusted*: the tamper-evidence is real and verifiable, but
-              nothing vouches for who signed. See `docs/SECURITY.md`.
+              nothing vouches for who signed. See `app/docs/SECURITY.md`.
 
             Every build is checked for 16 KB page alignment and runs the full unit suite,
             including the NIP-01 event-id, BIP-340 Schnorr and NIP-19 vectors.
