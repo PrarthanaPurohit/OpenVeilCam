@@ -30,10 +30,16 @@ came off the sensor.
 </p>
 
 <details>
-<summary><strong>Photo details — hashes, links and verification</strong></summary>
+<summary><strong>Photo details — what a capture carries after publishing</strong></summary>
 <br />
 <p align="center">
-  <img src="docs/images/06-details.jpg" width="280" alt="Photo details screen showing SHA-256 hashes, C2PA manifest ID, Nostr event ID, nevent and nprofile links, and the Blossom URL" />
+  <img src="docs/images/06-details.jpg"     height="420" alt="Photo details screen: capture metadata, Content Credentials verdict, Blossom and Nostr publication status, and nevent and nprofile links" />
+  <img src="docs/images/07-credentials.jpg" height="420" alt="Close-up of the Content Credentials verdict, stating that the signature matches the file but the certificate is not on a recognised trust list" />
+  <img src="docs/images/08-technical.jpg"   height="420" alt="Technical details: SHA-256 of the published file and of the original capture, C2PA manifest ID, Nostr event ID, nevent, nprofile, public key and Blossom URL" />
+</p>
+
+<p align="center">
+  <em>The full details screen · the credential verdict, stated without overclaiming · every hash and identifier, copyable</em>
 </p>
 </details>
 
