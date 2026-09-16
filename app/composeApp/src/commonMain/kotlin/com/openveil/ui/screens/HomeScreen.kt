@@ -56,6 +56,8 @@ data class IdentityStatus(
     val storage: VerificationState,
     /** bech32 npub, shown truncated. Null until the key has been generated. */
     val npub: String? = null,
+    /** npub of the user's own linked Nostr account. Null when none is linked, which is the default. */
+    val linkedNpub: String? = null,
 )
 
 /** True when this component is doing its job, as opposed to pending or broken. */
@@ -76,6 +78,8 @@ private val VerificationState.isSatisfied: Boolean
 fun HomeScreen(
     identity: IdentityStatus,
     onOpenCamera: () -> Unit,
+    onLinkAccount: () -> Unit,
+    onUnlinkAccount: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val components = listOf(identity.nostr, identity.contentCredentials, identity.storage)
@@ -128,6 +132,15 @@ fun HomeScreen(
                 NpubRow(identity.npub)
             }
         }
+
+        // Separate card, not a fourth status row. The rows above are things the device
+        // must have; this is something the user may choose to add, and putting it beside
+        // them would make "not linked" read as a fault.
+        LinkedAccountCard(
+            linkedNpub = identity.linkedNpub,
+            onLink = onLinkAccount,
+            onUnlink = onUnlinkAccount,
+        )
 
         HowItWorks()
 
@@ -269,6 +282,98 @@ private fun CaptureHero(onOpenCamera: () -> Unit, ready: Boolean) {
                 size = 18.dp,
                 tint = OpenVeilColors.OnPrimary,
             )
+        }
+    }
+}
+
+/**
+ * The optional link to the user's own Nostr account.
+ *
+ * Unlinked is the default and is presented as a perfectly good state, not a gap: the
+ * device identity publishes fine on its own, and for many of the people this app is
+ * built for, *not* tying captures to a public persona is the point.
+ */
+@Composable
+private fun LinkedAccountCard(
+    linkedNpub: String?,
+    onLink: () -> Unit,
+    onUnlink: () -> Unit,
+) {
+    GlassCard {
+        SectionLabel("Your Nostr account")
+        Spacer(Modifier.height(Spacing.sm))
+
+        if (linkedNpub == null) {
+            Text(
+                "Photos publish under this device's key. Link your own account to publish " +
+                    "under your name instead -- you choose per photo.",
+                style = OpenVeilTheme.type.bodySm,
+                color = OpenVeilColors.OnSurfaceVariant,
+            )
+            Spacer(Modifier.height(Spacing.md))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(OpenVeilShapes.small)
+                    .clickable(onClickLabel = "Link your Nostr account", onClick = onLink)
+                    .defaultMinSize(minHeight = Sizes.minTouchTarget)
+                    .padding(vertical = Spacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MaterialSymbol(
+                    OpenVeilIcon.Link,
+                    contentDescription = null,
+                    size = 20.dp,
+                    tint = OpenVeilColors.Primary,
+                )
+                Spacer(Modifier.width(Spacing.sm))
+                Text(
+                    "Link with a bunker",
+                    style = OpenVeilTheme.type.bodyMd,
+                    color = OpenVeilColors.Primary,
+                    modifier = Modifier.weight(1f),
+                )
+                MaterialSymbol(
+                    OpenVeilIcon.ArrowForward,
+                    contentDescription = null,
+                    size = 18.dp,
+                    tint = OpenVeilColors.Primary,
+                )
+            }
+        } else {
+            Text(
+                "Linked through your remote signer. Your key never enters this app.",
+                style = OpenVeilTheme.type.bodySm,
+                color = OpenVeilColors.OnSurfaceVariant,
+            )
+            Spacer(Modifier.height(Spacing.md))
+            Row(
+                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = Sizes.minTouchTarget),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "LINKED NPUB",
+                        style = OpenVeilTheme.type.metadata,
+                        color = OpenVeilColors.Outline,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        truncateNpub(linkedNpub),
+                        style = OpenVeilTheme.type.metadata,
+                        color = OpenVeilColors.OnSurface,
+                    )
+                }
+                Text(
+                    "Unlink",
+                    style = OpenVeilTheme.type.button,
+                    color = OpenVeilColors.Error,
+                    modifier = Modifier
+                        .clip(OpenVeilShapes.full)
+                        .clickable(onClickLabel = "Unlink your Nostr account", onClick = onUnlink)
+                        .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                )
+            }
         }
     }
 }

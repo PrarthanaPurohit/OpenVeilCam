@@ -7,6 +7,9 @@ import com.openveil.c2pa.DevCertSigningIdentity
 import com.openveil.net.createHttpClient
 import com.openveil.nostr.KtorNostrClient
 import com.openveil.nostr.NostrIdentityRepository
+import com.openveil.nostr.nip46.LinkedAccountRepository
+import com.openveil.nostr.nip55.AndroidSignerApp
+import com.openveil.nostr.nip55.IntentResultLauncher
 import com.openveil.publish.PublishPhotoUseCase
 import com.openveil.storage.AndroidFileStorage
 import com.openveil.storage.AndroidSecureStorage
@@ -23,12 +26,19 @@ fun createOpenVeilCore(
     context: Context,
     deviceName: String,
     appVersion: String,
+    /** Lets the NIP-55 signer open Amber for a result. Null disables the signer-app option. */
+    intentLauncher: IntentResultLauncher? = null,
 ): OpenVeilCore {
     val appContext = context.applicationContext
     val fileStorage = AndroidFileStorage(appContext)
     val secureStorage = AndroidSecureStorage(appContext)
     val identityRepository = NostrIdentityRepository(secureStorage)
     val httpClient = createHttpClient()
+    val linkedAccountRepository = LinkedAccountRepository(
+        secureStorage = secureStorage,
+        httpClient = httpClient,
+        signerApp = intentLauncher?.let { AndroidSignerApp(appContext, it) },
+    )
 
     val c2paService = AndroidC2paService(
         signingIdentity = DevCertSigningIdentity(),
@@ -51,8 +61,10 @@ fun createOpenVeilCore(
             identityRepository = identityRepository,
             fileStorage = fileStorage,
             deviceName = deviceName,
+            linkedAccounts = linkedAccountRepository,
         ),
         identityRepository = identityRepository,
+        linkedAccountRepository = linkedAccountRepository,
         c2paService = c2paService,
         fileStorage = fileStorage,
     )

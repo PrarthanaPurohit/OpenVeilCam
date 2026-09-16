@@ -14,8 +14,11 @@ import com.openveil.domain.service.FileStorage
 import com.openveil.nostr.KIND_FILE_METADATA
 import com.openveil.nostr.NostrClient
 import com.openveil.nostr.NostrIdentityRepository
+import com.openveil.nostr.asSigner
+import com.openveil.nostr.nip46.LinkedAccountRepository
 import com.openveil.nostr.buildCompanionNoteContent
 import com.openveil.nostr.buildNip94Tags
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlin.time.Clock
@@ -31,7 +34,24 @@ data class PublishJob(
     val captured: CapturedImage,
     val signed: SignedAsset? = null,
     val photo: Photo,
+    /**
+     * Whose name goes on the Nostr events. The device key always signs the Content
+     * Credential and the upload regardless -- that is the attestation, and it is not a
+     * choice. This only decides the attribution.
+     */
+    val publishAs: PublishAs = PublishAs.DEVICE,
 )
+
+/**
+ * Which key signs the published Nostr events.
+ *
+ * [DEVICE] is the default and the privacy-preserving one: nothing links the capture to
+ * any identity beyond this phone. [LINKED_ACCOUNT] publishes under the user's own Nostr
+ * account via their remote signer, which puts the photo in their followers' feeds -- and
+ * ties every such capture to one persistent, public identity. That trade is the user's to
+ * make, per capture, and never silently.
+ */
+enum class PublishAs { DEVICE, LINKED_ACCOUNT }
 
 /**
  * Capture -> Content Credentials -> hash -> Blossom -> NIP-94 -> relays.
@@ -54,6 +74,8 @@ class PublishPhotoUseCase(
     private val fileStorage: FileStorage,
     private val deviceName: String?,
     private val publishCompanionNote: Boolean = true,
+    /** Null when this build offers no account linking; [PublishAs.LINKED_ACCOUNT] then fails cleanly. */
+    private val linkedAccounts: LinkedAccountRepository? = null,
 ) {
 
     /**
@@ -175,31 +197,54 @@ class PublishPhotoUseCase(
         if (current.photo.nostrEventId == null) {
             emit(current.withStatus(PublishStatus.PUBLISHING_NOSTR).also { current = it })
 
-            val identity = resolveIdentity()
-            if (identity == null) {
+            val device = resolveIdentity()
+            if (device == null) {
                 emit(current.failed(PublishError.NOSTR_SIGNING_FAILED))
                 return@flow
             }
+            val signer = when (current.publishAs) {
+                PublishAs.DEVICE -> device.asSigner()
+                PublishAs.LINKED_ACCOUNT -> runCatching { linkedAccounts?.signer() }.getOrNull() ?: run {
+                    emit(current.failed(PublishError.LINKED_SIGNER_FAILED))
+                    return@flow
+                }
+            }
+
             val now = Clock.System.now().epochSeconds
             val caption = current.photo.caption?.trim()?.takeIf { it.isNotEmpty() }
-            val event = identity.signEvent(
-                kind = KIND_FILE_METADATA,
-                content = caption ?: "Captured with OpenVeil",
-                tags = buildNip94Tags(
-                    upload = com.openveil.domain.model.BlossomUploadResult(
-                        url = uploadUrl,
-                        sha256 = current.photo.sha256 ?: publishedHash,
-                        size = current.photo.fileSize,
-                        mimeType = current.photo.mimeType,
-                        serverUrl = uploadUrl,
-                    ),
-                    originalSha256 = current.photo.originalSha256,
-                    width = current.photo.width,
-                    height = current.photo.height,
-                    altText = caption,
+            val tags = buildNip94Tags(
+                upload = com.openveil.domain.model.BlossomUploadResult(
+                    url = uploadUrl,
+                    sha256 = current.photo.sha256 ?: publishedHash,
+                    size = current.photo.fileSize,
+                    mimeType = current.photo.mimeType,
+                    serverUrl = uploadUrl,
                 ),
-                createdAt = now,
+                originalSha256 = current.photo.originalSha256,
+                width = current.photo.width,
+                height = current.photo.height,
+                altText = caption,
+                // Always the device key, whoever signs the event. This is what lets a
+                // verifier reading only the event find the key the manifest names.
+                devicePubkeyHex = device.publicKeyHex,
             )
+
+            // A remote signer can refuse, time out, or be unreachable. That is a signing
+            // failure the user can retry after checking their signer app -- not a reason
+            // to lose a photo whose upload already succeeded.
+            val event = try {
+                signer.signEvent(
+                    kind = KIND_FILE_METADATA,
+                    content = caption ?: "Captured with OpenVeil",
+                    tags = tags,
+                    createdAt = now,
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                emit(current.failed(signingFailure(current.publishAs)))
+                return@flow
+            }
 
             when (val published = nostr.publish(event)) {
                 is AppResult.Failure -> {
@@ -210,7 +255,7 @@ class PublishPhotoUseCase(
                     current = current.copy(
                         photo = current.photo.copy(
                             nostrEventId = event.id,
-                            nostrPubkey = identity.publicKeyHex,
+                            nostrPubkey = signer.publicKeyHex,
                             acceptedRelays = published.value.acceptedRelays,
                             status = PublishStatus.PUBLISHED,
                             error = null,
@@ -227,7 +272,7 @@ class PublishPhotoUseCase(
             if (publishCompanionNote) {
                 runCatching {
                     nostr.publish(
-                        identity.signEvent(
+                        signer.signEvent(
                             kind = 1,
                             content = buildCompanionNoteContent(uploadUrl, caption),
                             tags = emptyList(),
@@ -260,6 +305,11 @@ class PublishPhotoUseCase(
      */
     private suspend fun resolveIdentity() =
         runCatching { identityRepository.getOrCreate() }.getOrNull()
+
+    private fun signingFailure(publishAs: PublishAs) = when (publishAs) {
+        PublishAs.DEVICE -> PublishError.NOSTR_SIGNING_FAILED
+        PublishAs.LINKED_ACCOUNT -> PublishError.LINKED_SIGNER_FAILED
+    }
 
     private fun PublishJob.withStatus(status: PublishStatus) =
         copy(photo = photo.copy(status = status, error = null, updatedAt = Clock.System.now()))

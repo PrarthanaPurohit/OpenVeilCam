@@ -63,6 +63,18 @@ class Nip94Test {
         assertEquals("a cat", buildNip94Tags(upload, null, 1, 1, "a cat").value("alt"))
     }
 
+    /**
+     * When a linked account signs the event, the `device` tag is the only thing in it
+     * that names the key inside the Content Credential. Without it the manifest-to-event
+     * bridge silently breaks for every non-device publish.
+     */
+    @Test
+    fun device_tag_names_the_attesting_key_when_given() {
+        val device = "ab".repeat(32)
+        assertEquals(device, buildNip94Tags(upload, null, 1, 1, null, devicePubkeyHex = device).value("device"))
+        assertNull(buildNip94Tags(upload, null, 1, 1, null).value("device"))
+    }
+
     @Test
     fun blossom_auth_tags_match_bud11() {
         val tags = buildBlossomAuthTags("upload", "abc123", expiresAtEpochSeconds = 1_700_000_300L)

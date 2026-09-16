@@ -57,6 +57,8 @@ kotlin {
             implementation(libs.secp256k1.jni.jvm)
             implementation(libs.ktor.client.okhttp)
             implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.ktor.server.cio)
+            implementation(libs.ktor.server.websockets)
         }
     }
 }

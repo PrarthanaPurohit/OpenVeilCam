@@ -16,6 +16,9 @@ sealed interface Screen {
     data object Home : Screen
     data object Camera : Screen
 
+    /** Pair with the user's remote signer. Reached from Home; returns there when done. */
+    data object LinkAccount : Screen
+
     /** Review the capture. [photoId] keys into the session's in-flight photo. */
     data class Review(val photoId: String) : Screen
     data class Publishing(val photoId: String) : Screen

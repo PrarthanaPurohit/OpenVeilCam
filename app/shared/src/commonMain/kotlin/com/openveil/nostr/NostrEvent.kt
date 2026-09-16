@@ -1,7 +1,11 @@
 package com.openveil.nostr
 
+import com.openveil.crypto.hexToBytes
 import com.openveil.crypto.sha256
 import com.openveil.crypto.toHex
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * A Nostr event (NIP-01).
@@ -142,4 +146,40 @@ private fun escapeJson(sb: StringBuilder, value: String) {
             else -> sb.append(c)
         }
     }
+}
+
+/**
+ * Parses a signed event from wire JSON. Null on anything malformed; the caller decides
+ * whether that is an error worth reporting.
+ */
+fun parseNostrEvent(text: String): NostrEvent? = runCatching {
+    val obj = kotlinx.serialization.json.Json.parseToJsonElement(text).jsonObject
+    NostrEvent(
+        id = obj["id"]!!.jsonPrimitive.content.lowercase(),
+        pubkey = obj["pubkey"]!!.jsonPrimitive.content.lowercase(),
+        createdAt = obj["created_at"]!!.jsonPrimitive.content.toLong(),
+        kind = obj["kind"]!!.jsonPrimitive.content.toInt(),
+        tags = obj["tags"]!!.jsonArray.map { tag -> tag.jsonArray.map { it.jsonPrimitive.content } },
+        content = obj["content"]!!.jsonPrimitive.content,
+        sig = obj["sig"]!!.jsonPrimitive.content.lowercase(),
+    )
+}.getOrNull()
+
+/**
+ * Why an event handed back by an external signer must not be trusted, or null if it is
+ * sound: right author, id that matches its own fields, signature that verifies.
+ *
+ * Every signer integration runs this before publishing. A relay would reject a bad event
+ * with an opaque error, and a signer that swapped in another pubkey would otherwise
+ * publish under a name the user never chose.
+ */
+fun NostrEvent.signingProblem(expectedPubkey: String): String? {
+    if (pubkey != expectedPubkey) return "The signer signed with a different key"
+    if (computeEventId(pubkey, createdAt, kind, tags, content) != id) {
+        return "The signer returned an event with a wrong id"
+    }
+    val valid = runCatching {
+        fr.acinq.secp256k1.Secp256k1.verifySchnorr(sig.hexToBytes(), id.hexToBytes(), pubkey.hexToBytes())
+    }.getOrDefault(false)
+    return if (valid) null else "The signer returned an invalid signature"
 }

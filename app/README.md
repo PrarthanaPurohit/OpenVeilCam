@@ -80,8 +80,8 @@ OpenVeil replaces institutional trust with a chain anyone can check independentl
         │
         ▼
    ┌──────────────────┐   A NIP-94 event carries url + hash + dimensions, signed with
-   │  Publish (Nostr) │   the device key, replicated across relays no one party owns.
-   └──────────────────┘
+   │  Publish (Nostr) │   the device key (or your own account), replicated across
+   └──────────────────┘   relays no one party owns.
 ```
 
 Each link is verifiable on its own, and the chain closes in both directions: the C2PA
@@ -93,8 +93,9 @@ mismatch showing.
 at capture time, and that it has not been altered since.
 
 **What it does not prove:** that the photographer was where they claim, that any caption is
-true, or — in this proof of concept — who the photographer is. Those are different
-problems, and conflating them is how provenance tools mislead people. See
+true, or who the photographer is — a linked Nostr account attributes a photo to a key,
+not to a person. Those are different problems, and conflating them is how provenance
+tools mislead people. See
 [docs/VERIFICATION.md][verification] for precisely what a green tick means and what it does
 not.
 
@@ -120,10 +121,57 @@ validating the C2PA manifest and reading the certificate's trust status honestly
 | Re-verification | Working | Re-checks the manifest against the stored bytes, in-app |
 | Captions | Working | Published with the photo, deliberately outside the credential |
 | Device identity | Working | secp256k1 key generated on device, wrapped by Android Keystore |
+| Linked account | Working | Optional; via Amber (NIP-55), a `bunker://` link (pasted or scanned), or a `nostrconnect://` QR. Publish under your own npub, chosen per photo |
 | Android | Working | minSdk 28, 16 KB page aligned |
 | iOS / Desktop / Web | Not yet | Source sets exist; implementations do not |
 | Offline queue | Not yet | Captures survive on disk, but there is no cross-launch retry |
 | Trusted certificate | Not yet | Development identity only — see limitations |
+
+## Publishing as yourself
+
+By default a capture is published under the phone's own key, and nothing about it points
+at a person. Optionally, you can link your own Nostr account and publish under your name
+instead — chosen per photo, never sticky.
+
+### Two keys, two jobs
+
+| | Signed by | Why |
+|---|---|---|
+| Content Credential (C2PA manifest) | **device key, always** | This is the attestation: *this hardware produced these bytes*. A personal key here would prove nothing about the camera. |
+| Blossom upload authorization | **device key, always** | Transport-level; nobody reads it as attribution. |
+| NIP-94 event + companion note | device key **or** your account | This is the attribution: *who is publishing it*. |
+
+The two are joined by the file's SHA-256, not by trust between the keys: the manifest says
+"device X attests to hash H", the event says "person Y publishes hash H", and both are
+independently verifiable. The event always carries a `["device", <pubkey>]` tag so a
+verifier reading only the event can find the key the manifest names.
+
+### Three ways to link — none of them an nsec
+
+There is deliberately no field to paste a private key. A stored nsec would turn a seized
+phone into a loss of the user's entire Nostr identity, not just their photos. Every path
+below grants OpenVeil the right to *ask for* signatures, revocably, and nothing more.
+
+| Method | When | How |
+|---|---|---|
+| **Signer app on this phone** ([NIP-55][nip55], Amber) | Amber is installed | Tap *Use your signer app*; Amber asks which account. Later signatures are answered silently by Amber's ContentProvider once you tell it to remember, so publishing does not require an app switch. |
+| **`bunker://` link** ([NIP-46][nip46]) | Any bunker: nsec.app, nsecBunker, Amber's bunker mode | Paste it from the clipboard, or scan the QR code the bunker shows. |
+| **`nostrconnect://` QR** ([NIP-46][nip46]) | The signer is on another device | OpenVeil shows a QR; your signer scans it and calls back. The reply must echo a one-time secret, so a stranger on the relay cannot claim to be your signer. |
+
+Note that scanning a QR is for a bunker on a *different* device — a phone cannot point its
+camera at its own screen, so with Amber on the same phone the first option is the right one.
+
+What OpenVeil stores for a linked account: your public key, and either the signer app's
+package name or a throwaway conversation key plus the bunker's pubkey and relays. Unlink
+removes it. Every event a signer hands back is verified locally — author, id and signature —
+before anything is published.
+
+### The trade-off, stated
+
+Publishing under a persistent public identity links every capture you publish that way to
+you. For many of the people this app is built for, *not* doing that is the point. So the
+device key stays the default, the choice is made on every photo's review screen with the
+consequence spelled out next to it, and there is no "always publish as me" setting.
 
 ## Standards implemented
 
@@ -136,8 +184,11 @@ vectors or an independent reference implementation.
 | [C2PA 2.x][c2pa] | Content Credentials, via the official `c2pa-android` (Rust) SDK |
 | [NIP-01][nip01] | Event serialisation, ids, BIP-340 Schnorr signatures |
 | [NIP-19][nip19] | `npub`, plus `nevent`/`nprofile` with TLV relay hints |
+| [NIP-44][nip44] | v2 encrypted payloads (ChaCha20 + HMAC-SHA256), the NIP-46 transport |
+| [NIP-46][nip46] | Remote signing: `bunker://` links and signer-initiated `nostrconnect://` pairing. The user's key never enters the app |
+| [NIP-55][nip55] | Android signer apps (Amber): silent ContentProvider signing, Intent fallback |
 | [NIP-92][nip92] | `imeta` tag, so ordinary clients render the image inline |
-| [NIP-94][nip94] | Kind 1063 file metadata: `url`, `m`, `x`, `ox`, `size`, `dim`, `alt` |
+| [NIP-94][nip94] | Kind 1063 file metadata: `url`, `m`, `x`, `ox`, `size`, `dim`, `alt`, plus a `device` tag naming the attesting key |
 | [BUD-01/02][blossom] | Blossom blob upload and retrieval |
 | [BUD-11][bud11] | Kind 24242 authorization events |
 | [BIP-340][bip340] | Schnorr signatures, via `secp256k1-kmp` |
@@ -182,7 +233,7 @@ Three Gradle modules — a split forced by AGP 9, which forbids combining
 
 ```
 shared/       Domain and data. No Compose, and no platform SDK types in its public API.
-              crypto · nostr · blossom · c2pa · publish · storage
+              crypto · nostr (nip44, nip46, nip55) · blossom · c2pa · publish · storage
 composeApp/   Compose Multiplatform UI. Depends on `shared`; cannot see Ktor or JNI types.
 androidApp/   Thin Android host: MainActivity and manifest, no business logic.
 ```
@@ -201,7 +252,7 @@ machine, and the ordering guarantees the pipeline depends on.
 ./gradlew :shared:testAndroidHostTest
 ```
 
-45 unit tests, concentrated on the places where a silent error would be both invisible and
+74 unit tests, concentrated on the places where a silent error would be both invisible and
 fatal:
 
 - **NIP-01 event ids**, recomputed from a known published event and cross-checked against
@@ -212,6 +263,14 @@ fatal:
   encodings checked against an independent JavaScript reference written from the spec.
 - **NIP-94 tags**, including the invariant that `x` comes from the server's response rather
   than a local variable that may have drifted.
+- **NIP-44 v2**, against the official test vectors: conversation keys, message keys, padding,
+  encrypt/decrypt, and every rejected-input case.
+- **NIP-46 end to end**, against an in-process relay that is also the bunker: pairing with a
+  secret, `get_public_key`, `sign_event` with local verification of the reply, the `auth_url`
+  detour, refusal of a tampered signature, and signer-initiated `nostrconnect://` pairing --
+  including that a reply without our secret is ignored.
+- **Bech32 decode**, which surfaced a latent 26-bit `polymod` mask in the encoder (BIP-173
+  says 25). Encoding happened to survive it; verification did not.
 - **BUD-11 auth events**: kind, `created_at` in the past, `expiration` in the future, and
   base64url *without* padding — three mistakes that all surface as an opaque HTTP 401.
 
@@ -236,9 +295,15 @@ Stated plainly, because a provenance tool that oversells itself is worse than no
    a precise coordinate attached to a photograph is the most harmful thing this pipeline
    could leak. The app does not request the permission, does not read GPS, and writes no
    location assertion.
-4. **Identity is per-device and non-portable.** The key is generated on the phone and never
-   leaves it. There is no backup, export or import — which also means a lost device is a
-   lost identity.
+4. **The device identity is per-device and non-portable.** The key is generated on the
+   phone and never leaves it. There is no backup, export or import — which also means a
+   lost device is a lost *device* identity. Attribution can go through a linked account
+   (see [Publishing as yourself](#publishing-as-yourself)), which does survive a lost phone,
+   but the attestation key does not.
+7. **Signer-app and QR pairing are verified against the protocol, not against Amber.** The
+   NIP-46 flows run end to end against an in-process bunker in the test suite; the NIP-55
+   Intent/ContentProvider path and the camera-based QR scanner have been built to the spec
+   but need a physical device with Amber installed to confirm.
 5. **Android only.** The multiplatform structure is real and the domain layer is
    platform-neutral, but only Android has an implementation behind it.
 6. **No persistent offline queue.** A signed capture survives on disk if publishing fails
@@ -274,6 +339,9 @@ checks native library alignment on every pull request.
 [bud11]: https://github.com/hzrd149/blossom/blob/master/buds/11.md
 [nip01]: https://github.com/nostr-protocol/nips/blob/master/01.md
 [nip19]: https://github.com/nostr-protocol/nips/blob/master/19.md
+[nip44]: https://github.com/nostr-protocol/nips/blob/master/44.md
+[nip46]: https://github.com/nostr-protocol/nips/blob/master/46.md
+[nip55]: https://github.com/nostr-protocol/nips/blob/master/55.md
 [nip92]: https://github.com/nostr-protocol/nips/blob/master/92.md
 [nip94]: https://github.com/nostr-protocol/nips/blob/master/94.md
 [bip340]: https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki

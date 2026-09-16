@@ -2,6 +2,8 @@ package com.openveil.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,9 +30,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import com.openveil.publish.PublishAs
 import com.openveil.ui.components.CaptionField
 import com.openveil.ui.components.ChecklistRow
 import com.openveil.ui.components.GlassCard
@@ -64,6 +69,9 @@ data class ReviewUiState(
     val exif: Map<String, String> = emptyMap(),
     /** Optional note the photographer is writing. Published with the photo, not signed into it. */
     val caption: String = "",
+    /** npub of the linked account, or null when there is none and no choice to offer. */
+    val linkedNpub: String? = null,
+    val publishAs: PublishAs = PublishAs.DEVICE,
 ) {
     override fun equals(other: Any?): Boolean =
         this === other || (other is ReviewUiState &&
@@ -71,6 +79,8 @@ data class ReviewUiState(
             signingComplete == other.signingComplete &&
             signingFailed == other.signingFailed &&
             caption == other.caption &&
+            linkedNpub == other.linkedNpub &&
+            publishAs == other.publishAs &&
             exif == other.exif)
 
     override fun hashCode(): Int =
@@ -91,6 +101,7 @@ fun ReviewScreen(
     onPublish: () -> Unit,
     onClose: () -> Unit,
     onCaptionChange: (String) -> Unit,
+    onPublishAsChange: (PublishAs) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
@@ -189,6 +200,17 @@ fun ReviewScreen(
 
                 CaptionField(value = state.caption, onValueChange = onCaptionChange)
 
+                // Only offered when there is a real choice. With no linked account the
+                // device key publishes and there is nothing to decide, so the section does
+                // not exist rather than showing one greyed-out option.
+                if (state.linkedNpub != null) {
+                    PublishAsChooser(
+                        linkedNpub = state.linkedNpub,
+                        selected = state.publishAs,
+                        onSelect = onPublishAsChange,
+                    )
+                }
+
                 if (state.exif.isNotEmpty()) {
                     GlassCard {
                         SectionLabel("Capture data")
@@ -271,6 +293,90 @@ fun ReviewScreen(
                     onClick = onClose,
                 )
             }
+        }
+    }
+}
+
+/**
+ * Whose name goes on this photo's Nostr events.
+ *
+ * Per capture and reset on every new one: a sticky "always publish as me" would make the
+ * one photo someone forgot to switch back the one that identifies them. The device
+ * option is listed first and is the default.
+ */
+@Composable
+private fun PublishAsChooser(
+    linkedNpub: String,
+    selected: PublishAs,
+    onSelect: (PublishAs) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        SectionLabel("Publish as")
+        PublishAsOption(
+            title = "This device",
+            subtitle = "Signed by the device key only. Nothing links it to you.",
+            selected = selected == PublishAs.DEVICE,
+            onClick = { onSelect(PublishAs.DEVICE) },
+        )
+        PublishAsOption(
+            title = "Your account",
+            subtitle = truncateNpub(linkedNpub),
+            selected = selected == PublishAs.LINKED_ACCOUNT,
+            onClick = { onSelect(PublishAs.LINKED_ACCOUNT) },
+        )
+        if (selected == PublishAs.LINKED_ACCOUNT) {
+            Row(verticalAlignment = Alignment.Top) {
+                MaterialSymbol(
+                    OpenVeilIcon.Warning,
+                    contentDescription = null,
+                    size = 18.dp,
+                    tint = OpenVeilColors.Tertiary,
+                )
+                Spacer(Modifier.width(Spacing.sm))
+                Text(
+                    "This photo will be publicly tied to your Nostr identity. Your signer " +
+                        "app may ask you to approve the request.",
+                    style = OpenVeilTheme.type.bodySm,
+                    color = OpenVeilColors.OnSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PublishAsOption(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val border = if (selected) OpenVeilColors.Primary else OpenVeilColors.OutlineVariant.copy(alpha = 0.6f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(OpenVeilShapes.medium)
+            .background(
+                if (selected) OpenVeilColors.Primary.copy(alpha = 0.10f) else OpenVeilColors.SurfaceContainerLow
+            )
+            .border(1.dp, border, OpenVeilShapes.medium)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .padding(Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = OpenVeilTheme.type.bodyMd, color = OpenVeilColors.OnSurface)
+            Spacer(Modifier.height(2.dp))
+            Text(subtitle, style = OpenVeilTheme.type.bodySm, color = OpenVeilColors.OnSurfaceVariant)
+        }
+        if (selected) {
+            MaterialSymbol(
+                OpenVeilIcon.CheckCircle,
+                contentDescription = "Selected",
+                size = 20.dp,
+                tint = OpenVeilColors.Primary,
+                filled = true,
+            )
         }
     }
 }

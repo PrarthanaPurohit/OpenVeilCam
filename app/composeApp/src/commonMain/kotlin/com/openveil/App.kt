@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +30,8 @@ import com.openveil.ui.screens.CameraScreen
 import com.openveil.ui.screens.CredentialCheck
 import com.openveil.ui.screens.FlashMode
 import com.openveil.ui.screens.HomeScreen
+import com.openveil.ui.screens.LinkAccountScreen
+import com.openveil.ui.screens.LinkAccountUiState
 import com.openveil.ui.screens.PhotoDetailsScreen
 import com.openveil.ui.screens.PublishingScreen
 import com.openveil.ui.screens.PublishingUiState
@@ -58,6 +61,12 @@ fun App() {
 
         LaunchedEffect(Unit) { coordinator.refreshIdentity() }
 
+        // A remote signer may want the user to approve a request in a browser first
+        // (NIP-46 `auth_url`). The pending request keeps waiting while they do.
+        LaunchedEffect(dependencies) {
+            dependencies.linkedAccountRepository.authUrls.collect { openUrl(it) }
+        }
+
         PlatformBackHandler(enabled = navigator.canGoBack) { navigator.back() }
 
         val job = coordinator.job
@@ -76,7 +85,30 @@ fun App() {
                 Screen.Home -> HomeScreen(
                     identity = coordinator.identity,
                     onOpenCamera = { navigator.navigateTo(Screen.Camera) },
+                    onLinkAccount = { navigator.navigateTo(Screen.LinkAccount) },
+                    onUnlinkAccount = coordinator::unlinkAccount,
                 )
+
+                Screen.LinkAccount -> {
+                    val cameraPermission = rememberCameraPermission()
+                    // Leaving the screen abandons a QR pairing in progress; a signer that
+                    // scans a stale code after this would otherwise link silently.
+                    DisposableEffect(Unit) { onDispose { coordinator.cancelPairing() } }
+                    LinkAccountScreen(
+                        state = LinkAccountUiState(
+                            linkState = coordinator.linkState,
+                            signerAppAvailable = coordinator.signerAppAvailable,
+                            pairingUri = coordinator.pairingUri,
+                            cameraPermission = cameraPermission.state,
+                        ),
+                        onUseSignerApp = { coordinator.linkWithSignerApp { navigator.back() } },
+                        onConnectBunker = { link -> coordinator.linkAccount(link) { navigator.back() } },
+                        onShowPairingQr = { coordinator.startPairing { navigator.back() } },
+                        onCancelPairing = coordinator::cancelPairing,
+                        onRequestCameraPermission = cameraPermission::request,
+                        onBack = { navigator.back() },
+                    )
+                }
 
                 Screen.Camera -> CameraRoute(
                     onCaptured = { navigator.replaceWith(Screen.Review(it)) },
@@ -96,6 +128,8 @@ fun App() {
                                 signingFailed = current.photo.status == PublishStatus.FAILED,
                                 exif = current.captureFacts(),
                                 caption = current.photo.caption.orEmpty(),
+                                linkedNpub = coordinator.linkedAccount?.npub,
+                                publishAs = current.publishAs,
                             ),
                             onRetake = {
                                 coordinator.discard()
@@ -110,6 +144,7 @@ fun App() {
                                 navigator.popToHome()
                             },
                             onCaptionChange = coordinator::setCaption,
+                            onPublishAsChange = coordinator::setPublishAs,
                         )
                     }
                 }

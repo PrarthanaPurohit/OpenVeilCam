@@ -35,6 +35,8 @@ enum class PublishError {
     BLOSSOM_AUTH_FAILED,
     BLOSSOM_UPLOAD_FAILED,
     NOSTR_SIGNING_FAILED,
+    /** Publishing as a linked account was requested, but the remote signer refused or could not be reached. */
+    LINKED_SIGNER_FAILED,
     NOSTR_PUBLISH_FAILED,
     NO_NETWORK,
     ;
@@ -44,6 +46,6 @@ enum class PublishError {
         get() = when (this) {
             CAMERA_FAILED, C2PA_FAILED, HASH_FAILED -> PublishStatus.CAPTURED
             BLOSSOM_AUTH_FAILED, BLOSSOM_UPLOAD_FAILED, NO_NETWORK -> PublishStatus.C2PA_SIGNED
-            NOSTR_SIGNING_FAILED, NOSTR_PUBLISH_FAILED -> PublishStatus.BLOSSOM_UPLOADED
+            NOSTR_SIGNING_FAILED, LINKED_SIGNER_FAILED, NOSTR_PUBLISH_FAILED -> PublishStatus.BLOSSOM_UPLOADED
         }
 }

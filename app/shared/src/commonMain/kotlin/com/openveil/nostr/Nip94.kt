@@ -27,6 +27,13 @@ fun buildNip94Tags(
     width: Int,
     height: Int,
     altText: String?,
+    /**
+     * x-only hex of the device key that signed the Content Credential. Emitted whether or
+     * not it is also the event author, so a verifier has one rule: the attesting key is
+     * the `device` tag. When the user publishes under their own linked account, this is
+     * the only thing in the event that points back at the manifest.
+     */
+    devicePubkeyHex: String? = null,
 ): List<List<String>> = buildList {
     add(listOf("url", upload.url))
     add(listOf("m", upload.mimeType))
@@ -40,6 +47,9 @@ fun buildNip94Tags(
     }
     if (!altText.isNullOrBlank()) {
         add(listOf("alt", altText))
+    }
+    if (devicePubkeyHex != null) {
+        add(listOf("device", devicePubkeyHex))
     }
     // NIP-92 imeta: a single tag whose elements are "key value" strings. Ordinary Nostr
     // clients read this to render the image inline; without it a kind-1063 event shows up
