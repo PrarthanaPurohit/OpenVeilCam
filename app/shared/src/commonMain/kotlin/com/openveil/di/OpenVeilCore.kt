@@ -3,6 +3,7 @@ package com.openveil.di
 import com.openveil.domain.service.C2paService
 import com.openveil.domain.service.FileStorage
 import com.openveil.nostr.NostrIdentityRepository
+import com.openveil.nostr.nip46.LinkedAccountRepository
 import com.openveil.publish.PublishPhotoUseCase
 
 /**
@@ -16,6 +17,8 @@ import com.openveil.publish.PublishPhotoUseCase
 class OpenVeilCore(
     val publishPhotoUseCase: PublishPhotoUseCase,
     val identityRepository: NostrIdentityRepository,
+    /** The optional link to the user's own Nostr account, signed for by a NIP-46 bunker. */
+    val linkedAccountRepository: LinkedAccountRepository,
     val c2paService: C2paService,
     /** Exposed so an abandoned capture's signed master can be deleted on discard. */
     val fileStorage: FileStorage,

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import com.openveil.domain.service.C2paService
 import com.openveil.domain.service.FileStorage
 import com.openveil.nostr.NostrIdentityRepository
+import com.openveil.nostr.nip46.LinkedAccountRepository
 import com.openveil.publish.PublishPhotoUseCase
 
 /**
@@ -16,6 +17,7 @@ import com.openveil.publish.PublishPhotoUseCase
 interface AppDependencies {
     val publishPhotoUseCase: PublishPhotoUseCase
     val identityRepository: NostrIdentityRepository
+    val linkedAccountRepository: LinkedAccountRepository
     val c2paService: C2paService
     val fileStorage: FileStorage
 

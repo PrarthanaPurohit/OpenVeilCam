@@ -12,7 +12,8 @@ This repository holds two implementations of that idea, sharing one protocol des
 | Component | Platform | |
 |---|---|---|
 | **`openveil-cam`** | Raspberry Pi | Rust. Fixed-install camera. Repository root. |
-| **`app/`** | Android today; iOS, desktop and web planned | Kotlin Multiplatform. See [app/README.md](app/README.md). |
+| **`app/`** | Android today; iOS, desktop and web planned | Kotlin Multiplatform. Publishes under the device key or, optionally, the user's own Nostr account via Amber or a bunker. See [app/README.md](app/README.md). |
+| **`c2pa-bridge`** | Rust utility | Publishes Content Credentials minted by other devices and binds them to Nostr events. |
 
 Both publish to the same relays and the same Blossom servers under the same event kinds,
 so a capture from either is discoverable and verifiable the same way.
@@ -146,7 +147,9 @@ independently, so `cargo build` at the root behaves exactly as it always has.
 - `deploy.sh`: Deploys and builds `OpenVeilCam` from your development environment to a Raspberry Pi over SSH.
 - `app/`: The handheld client. Same pipeline, same protocol. Signs at the shutter, uploads
   to Blossom, publishes NIP-94, and can re-verify a capture against its stored bytes on
-  device. Android runs today; the domain layer is already platform-neutral so iOS, desktop
+  device. Can also publish under the user's own Nostr account — linked through Amber
+  (NIP-55) or a NIP-46 bunker, never by pasting an nsec — while the device key keeps
+  signing the Content Credential. Android runs today; the domain layer is already platform-neutral so iOS, desktop
   and web are additive. Documentation, including how a third party verifies a capture
   without trusting this project, is in [app/docs/](app/docs/).
 
@@ -213,9 +216,9 @@ The device uses `device-signer` to derive a deterministic secp256k1 key from har
 - **npub** — Printed at startup (`Device Identity`). Use this to follow your device from any Nostr client.
 - **pubkey (hex)** — Same key in hex; useful for relay filters and event lookups.
 
-**If you need nsec** (e.g. to import into Damus, Primal, or another client):
-- `device-signer` does not expose the raw secret. The key lives only in memory during signing.
-- Options: extend [device-signer](https://github.com/prarthanapurohit/device-signer) to add an `nsec()` or `export_secret()` method (requires changing the crate’s API and accepting the security tradeoff), or use a separate software-backed key for Nostr and keep the hardware identity only for attestation.
+**If you want captures to appear under your own Nostr identity**, do not export the device key. Keep the hardware identity for attestation and sign the *announcement* with your own account instead. The handheld app already works this way — see [Publishing as yourself](app/README.md#publishing-as-yourself): the device key signs the Content Credential, a linked account (Amber or a NIP-46 bunker) signs the NIP-94 event, and the event carries a `device` tag naming the attesting key. The Pi firmware does not yet offer this; when it does, it should follow the same split.
+
+`device-signer` deliberately does not expose the raw secret — the key lives only in memory during signing. Extending it with an `nsec()` export would trade away the property the whole design rests on.
 
 ## Core libraries
 

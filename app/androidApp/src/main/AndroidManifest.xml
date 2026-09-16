@@ -5,6 +5,15 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature android:name="android.hardware.camera.any" android:required="true" />
 
+    <!-- NIP-55: lets the app discover and address a signer app (Amber) on this device. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="nostrsigner" />
+        </intent>
+    </queries>
+
     <!-- Deliberately NOT declared: ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION.
          Publishing to Nostr is irreversibly public and this app serves journalists and
          human rights defenders, so the MVP never reads or embeds GPS. -->

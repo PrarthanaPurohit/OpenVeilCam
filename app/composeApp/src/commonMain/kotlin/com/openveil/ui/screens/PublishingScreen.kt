@@ -178,6 +178,7 @@ internal fun failureTitle(error: PublishError): String = when (error) {
     PublishError.C2PA_FAILED, PublishError.HASH_FAILED -> "Signing couldn't be completed"
     PublishError.BLOSSOM_AUTH_FAILED, PublishError.BLOSSOM_UPLOAD_FAILED -> "Upload couldn't be completed"
     PublishError.NOSTR_SIGNING_FAILED, PublishError.NOSTR_PUBLISH_FAILED -> "Publication didn't complete"
+    PublishError.LINKED_SIGNER_FAILED -> "Your signer didn't approve"
     PublishError.NO_NETWORK -> "You're offline"
     PublishError.CAMERA_FAILED -> "Capture failed"
 }
@@ -189,12 +190,14 @@ internal fun failureBody(error: PublishError): String = when (error) {
         "We couldn't securely upload your photo. Your original is still safe on this device."
     PublishError.NOSTR_SIGNING_FAILED, PublishError.NOSTR_PUBLISH_FAILED ->
         "Your photo was uploaded successfully, but publishing didn't finish. Retrying won't upload it again."
+    PublishError.LINKED_SIGNER_FAILED ->
+        "Your photo was uploaded, but your signer app didn't sign the announcement. Open it, check for a pending request, then retry -- nothing is uploaded twice."
     PublishError.NO_NETWORK ->
         "Your signed photo is saved on this device. We'll finish publishing when you're back online."
     PublishError.CAMERA_FAILED -> "The camera didn't return a photo."
 }
 
 internal fun retryLabel(error: PublishError): String = when (error) {
-    PublishError.NOSTR_SIGNING_FAILED, PublishError.NOSTR_PUBLISH_FAILED -> "Retry publication"
+    PublishError.NOSTR_SIGNING_FAILED, PublishError.LINKED_SIGNER_FAILED, PublishError.NOSTR_PUBLISH_FAILED -> "Retry publication"
     else -> "Try again"
 }

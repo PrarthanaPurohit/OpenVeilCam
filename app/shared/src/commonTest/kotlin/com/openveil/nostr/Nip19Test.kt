@@ -5,6 +5,7 @@ import com.openveil.crypto.hexToBytes
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import com.openveil.crypto.toHex
 import kotlin.test.assertTrue
 
 /**
@@ -92,5 +93,33 @@ class Nip19Test {
     fun builds_a_browser_link_any_client_can_resolve() {
         val nevent = Nip19.nevent(eventIdHex, listOf("wss://nos.lol"), pubkeyHex, KIND_FILE_METADATA)
         assertEquals("https://njump.me/$nevent", NostrLinks.forEvent(nevent))
+    }
+}
+
+class Bech32DecodeTest {
+    private val pubkeyHex = "d76a5ac24eb0f07a1efc84535c32bc16ef310645ed3e488477e6b24bf572bba2"
+    private val npub = "npub16a494sjwkrc858hus3f4cv4uzmhnzpj9a5ly3prhu6eyhatjhw3q9wjcaa"
+
+    @Test
+    fun decode_inverts_encode() {
+        assertEquals(pubkeyHex, com.openveil.crypto.decodeNpub(npub).toHex())
+        assertEquals(pubkeyHex, com.openveil.crypto.decodeNpub(npub.uppercase()).toHex(), "all-uppercase is valid bech32")
+    }
+
+    @Test
+    fun decode_rejects_corruption() {
+        val corrupted = npub.dropLast(1) + (if (npub.last() == 'a') 'q' else 'a')
+        kotlin.test.assertFailsWith<IllegalArgumentException> { com.openveil.crypto.decodeNpub(corrupted) }
+        kotlin.test.assertFailsWith<IllegalArgumentException> { com.openveil.crypto.decodeNpub("nsec1" + npub.drop(5)) }
+        kotlin.test.assertFailsWith<IllegalArgumentException> { com.openveil.crypto.decodeNpub("npub1Abc" + npub.drop(8)) }
+        kotlin.test.assertFailsWith<IllegalArgumentException> { com.openveil.crypto.decodeNpub("") }
+    }
+
+    @Test
+    fun signer_pubkeys_normalise_from_npub_or_hex() {
+        assertEquals(pubkeyHex, com.openveil.nostr.nip55.normalizeSignerPubkey(npub))
+        assertEquals(pubkeyHex, com.openveil.nostr.nip55.normalizeSignerPubkey(" $pubkeyHex ".uppercase()))
+        assertEquals(null, com.openveil.nostr.nip55.normalizeSignerPubkey("not a key"))
+        assertEquals(null, com.openveil.nostr.nip55.normalizeSignerPubkey(null))
     }
 }

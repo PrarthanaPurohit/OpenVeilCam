@@ -59,6 +59,12 @@ ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "kto
 ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-serialization-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
 ktor-client-websockets = { module = "io.ktor:ktor-client-websockets", version.ref = "ktor" }
+# Test-only: an in-process relay + bunker for the NIP-46 loopback test.
+ktor-server-cio = { module = "io.ktor:ktor-server-cio", version.ref = "ktor" }
+ktor-server-websockets = { module = "io.ktor:ktor-server-websockets", version.ref = "ktor" }
+# QR codes both ways: rendering a nostrconnect:// link and reading a bunker:// one. Pure Java,
+# no Play Services, and one dependency covers encode and decode.
+zxing-core = { module = "com.google.zxing:core", version = "3.5.3" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
