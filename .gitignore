@@ -8,3 +8,19 @@ nostreye_capture.jpg
 # OS / editor cruft
 .DS_Store
 target/
+
+# Machine-local tooling state at the repository root. The app's own build lives
+# under app/ and has its own .gitignore; these are what the IDE and Gradle leave
+# behind when the repo root is opened directly.
+.gradle/
+.idea/
+.claude/
+build/
+local.properties
+
+# Stale output from before the app moved under app/. Safe to delete outright;
+# ignored here so a leftover checkout does not show up as untracked noise.
+/androidApp/
+/composeApp/
+/shared/
+/tools/
