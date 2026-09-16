@@ -27,8 +27,8 @@ so a capture from either is discoverable and verifiable the same way.
 ## Content Credentials on capture (`openveil-cam`)
 
 Every frame the Pi captures leaves with a real C2PA manifest embedded in it,
-signed by the device. Any C2PA tool — `c2patool`, Adobe's Verify, the browser
-extensions — reads it without knowing that Nostr exists.
+signed by the device. Any C2PA tool (`c2patool`, Adobe's Verify, the browser
+extensions) reads it without knowing that Nostr exists.
 
 The manifest asserts `c2pa.created` with a `digitalCapture` source type: these
 pixels came off a sensor, not out of a generator or an editor. Alongside it
@@ -37,8 +37,8 @@ pubkey, and the `px1` hash.
 
 ### The two keys
 
-The Nostr identity is secp256k1. C2PA does not permit that curve — the spec
-allows only the NIST P-curves, RSA-PSS and Ed25519 — so the credential is
+The Nostr identity is secp256k1. C2PA does not permit that curve (the spec
+allows only the NIST P-curves, RSA-PSS and Ed25519), so the credential is
 signed by a **separate P-256 key derived from the same hardware entropy**. Both
 keys are re-derived on every run and neither is written to disk; only the
 self-signed certificate is persisted, at `~/.hardware_identity/c2pa_cert.pem`.
@@ -49,14 +49,14 @@ binding holds from either direction, so losing one does not break the other.
 
 ### Why it reads `Valid` and not `Trusted`
 
-The certificate is self-signed, so validators report `Valid` — the signature is
-cryptographically sound — but not `Trusted`, which would require chaining to
+The certificate is self-signed, so validators report `Valid` (the signature is
+cryptographically sound) but not `Trusted`, which would require chaining to
 the C2PA trust list via their Conformance Program. That is the intended
 posture, and the same argument the bridge makes below: cryptographic validity
 comes from C2PA, trust comes from the Nostr identity.
 
 Embedding a manifest adds a JUMBF box without touching pixels, so the `px1`
-hash is identical before and after signing — the Nostr side can key off it
+hash is identical before and after signing, so the Nostr side can key off it
 either way. Pinned by `c2pa_sign::tests::signing_preserves_the_px1_hash`.
 
 ## C2PA bridge (`c2pa-bridge`)
@@ -68,7 +68,7 @@ Content Credentials ([C2PA](https://c2pa.org)) already ship in hardware from
 Leica, Nikon, Canon, Fujifilm and Panasonic. OpenVeil does not re-implement
 that. What C2PA lacks is somewhere decentralized to *put* a manifest: the
 credential is embedded in the asset, so a platform re-encode destroys it, and
-C2PA's own remedy — a remote manifest URL — points at a single HTTP endpoint.
+C2PA's own remedy, a remote manifest URL, points at a single HTTP endpoint.
 
 `c2pa-bridge` is the distribution layer. It ingests an asset signed by any
 C2PA-capable device (no keys of our own involved), stores the asset and a
@@ -92,7 +92,7 @@ cargo run --bin c2pa-bridge -- verify photo.jpg event.json
 ### The event
 
 A plain NIP-94 (`kind:1063`) file-metadata event with namespaced `c2pa-*`
-tags. **No new event kinds and no new NIP** — unknown tags are ignored by
+tags. **No new event kinds and no new NIP**: unknown tags are ignored by
 clients that do not understand them, so this ships without ratifying anything.
 
 | Tag | Meaning |
@@ -110,7 +110,7 @@ manifest locally and ignores what the event claims.
 ### Trust model
 
 C2PA's "Trusted" state requires the signing certificate to chain to the
-official C2PA Trust List via its Conformance Program — a centralized PKI.
+official C2PA Trust List via its Conformance Program, a centralized PKI.
 OpenVeil treats `Valid` (cryptographically sound) as sufficient and resolves
 *trust* against Nostr identities instead, so provenance does not depend on a
 corporate CA. `verify` reports trust-list status separately rather than
@@ -119,7 +119,7 @@ conflating it with validity.
 ### What `px1` does and does not do
 
 `px1` hashes the decoded raster rather than the file bytes, so it survives
-EXIF/ICC stripping and lossless container rewrapping — which is what makes a
+EXIF/ICC stripping and lossless container rewrapping, which is what makes a
 detached manifest findable after metadata is stripped. It does **not** survive
 lossy re-encoding, resizing or cropping; surviving platform re-compression
 needs a perceptual hash or watermark, which px1 is not. Both properties are
@@ -147,8 +147,8 @@ independently, so `cargo build` at the root behaves exactly as it always has.
 - `deploy.sh`: Deploys and builds `OpenVeilCam` from your development environment to a Raspberry Pi over SSH.
 - `app/`: The handheld client. Same pipeline, same protocol. Signs at the shutter, uploads
   to Blossom, publishes NIP-94, and can re-verify a capture against its stored bytes on
-  device. Can also publish under the user's own Nostr account — linked through Amber
-  (NIP-55) or a NIP-46 bunker, never by pasting an nsec — while the device key keeps
+  device. Can also publish under the user's own Nostr account, linked through Amber
+  (NIP-55) or a NIP-46 bunker, never by pasting an nsec, while the device key keeps
   signing the Content Credential. Android runs today; the domain layer is already platform-neutral so iOS, desktop
   and web are additive. Documentation, including how a third party verifies a capture
   without trusting this project, is in [app/docs/](app/docs/).
@@ -183,15 +183,15 @@ cargo run
 
 Capture uses the Pi’s standard still capture CLI (`rpicam-still` on `PATH`, e.g. from Raspberry Pi OS `rpicam-apps` / `libcamera-apps`).
 
-1. **Detect cameras** — Lists cameras and parses the tool’s output.
-2. **Capture** — Writes a JPEG to `/tmp/nostreye_capture.jpg` (1920×1080, quality 95).
-3. **Device identity** — Initialises hardware-linked identity (secp256k1) using `device-signer`.
-4. **Profile (kind 0)** — Signs and broadcasts a metadata event so your npub shows a profile (name, display_name, about) across Nostr clients. Sent first so relays have the profile before any other events.
-5. **Content Credentials** — Embeds a device-signed C2PA manifest and writes the result to `/tmp/nostreye_capture_c2pa.jpg`. From here on it is the *signed* file that gets hashed, uploaded and published. If signing fails the run continues on the unsigned frame and says so loudly, since a camera that publishes nothing is worse than one that publishes an uncredentialed frame.
-6. **Frame integrity** — Computes ECDSA signature over the JPEG bytes (attestation).
-7. **Publish** — Uploads the image to Blossom (BUD-01 auth), then broadcasts:
-   - **Kind 1** — Text note with the image URL (visible in Damus, Primal, Snort, etc.).
-   - **Kind 1063** — NIP-94 file-metadata event with URL, SHA256, dimensions, and ECDSA attestation.
+1. **Detect cameras**: Lists cameras and parses the tool’s output.
+2. **Capture**: Writes a JPEG to `/tmp/nostreye_capture.jpg` (1920×1080, quality 95).
+3. **Device identity**: Initialises hardware-linked identity (secp256k1) using `device-signer`.
+4. **Profile (kind 0)**: Signs and broadcasts a metadata event so your npub shows a profile (name, display_name, about) across Nostr clients. Sent first so relays have the profile before any other events.
+5. **Content Credentials**: Embeds a device-signed C2PA manifest and writes the result to `/tmp/nostreye_capture_c2pa.jpg`. From here on it is the *signed* file that gets hashed, uploaded and published. If signing fails the run continues on the unsigned frame and says so loudly, since a camera that publishes nothing is worse than one that publishes an uncredentialed frame.
+6. **Frame integrity**: Computes ECDSA signature over the JPEG bytes (attestation).
+7. **Publish**: Uploads the image to Blossom (BUD-01 auth), then broadcasts:
+   - **Kind 1**: Text note with the image URL (visible in Damus, Primal, Snort, etc.).
+   - **Kind 1063**: NIP-94 file-metadata event with URL, SHA256, dimensions, and ECDSA attestation.
    Relays: `relay.damus.io`, `nos.lol`, `relay.primal.net`, `relay.snort.social`, `nostr.mom`.
 
 ### Viewing the captured image
@@ -202,7 +202,7 @@ Copy from the Pi to your machine:
 scp user@<rpi-ip>:/tmp/nostreye_capture_c2pa.jpg .
 ```
 
-That is the credentialed file — drop it into [Content Credentials Verify](https://contentcredentials.org/verify) or run `cargo run --bin c2pa-bridge -- inspect` on it. The unsigned original stays at `/tmp/nostreye_capture.jpg`.
+That is the credentialed file: drop it into [Content Credentials Verify](https://contentcredentials.org/verify) or run `cargo run --bin c2pa-bridge -- inspect` on it. The unsigned original stays at `/tmp/nostreye_capture.jpg`.
 
 ### Viewing in Nostr clients
 
@@ -210,22 +210,22 @@ Add your npub (printed at startup) to Damus, Primal, Snort, or any Nostr client.
 
 ### Keys and nsec
 
-The device uses `device-signer` to derive a deterministic secp256k1 key from hardware entropy (CPU serial, MAC, machine ID) and a persisted salt. The secret is derived on demand for signing and **is not exported as nsec** — this is by design to avoid leaking the key.
+The device uses `device-signer` to derive a deterministic secp256k1 key from hardware entropy (CPU serial, MAC, machine ID) and a persisted salt. The secret is derived on demand for signing and **is not exported as nsec**: this is by design to avoid leaking the key.
 
 **What you can see:**
-- **npub** — Printed at startup (`Device Identity`). Use this to follow your device from any Nostr client.
-- **pubkey (hex)** — Same key in hex; useful for relay filters and event lookups.
+- **npub**: Printed at startup (`Device Identity`). Use this to follow your device from any Nostr client.
+- **pubkey (hex)**: Same key in hex; useful for relay filters and event lookups.
 
-**If you want captures to appear under your own Nostr identity**, do not export the device key. Keep the hardware identity for attestation and sign the *announcement* with your own account instead. The handheld app already works this way — see [Publishing as yourself](app/README.md#publishing-as-yourself): the device key signs the Content Credential, a linked account (Amber or a NIP-46 bunker) signs the NIP-94 event, and the event carries a `device` tag naming the attesting key. The Pi firmware does not yet offer this; when it does, it should follow the same split.
+**If you want captures to appear under your own Nostr identity**, do not export the device key. Keep the hardware identity for attestation and sign the *announcement* with your own account instead. The handheld app already works this way; see [Publishing as yourself](app/README.md#publishing-as-yourself): the device key signs the Content Credential, a linked account (Amber or a NIP-46 bunker) signs the NIP-94 event, and the event carries a `device` tag naming the attesting key. The Pi firmware does not yet offer this; when it does, it should follow the same split.
 
-`device-signer` deliberately does not expose the raw secret — the key lives only in memory during signing. Extending it with an `nsec()` export would trade away the property the whole design rests on.
+`device-signer` deliberately does not expose the raw secret; the key lives only in memory during signing. Extending it with an `nsec()` export would trade away the property the whole design rests on.
 
 ## Core libraries
 
-- **device-signer** — Hardware-linked identity; Schnorr and ECDSA signing.
-- **c2pa** — Content Credentials: minting manifests on capture, reading them in the bridge.
-- **p256 / openssl** — The ES256 credential key and its self-signed certificate.
-- **nostr** — Event building and verification.
-- **reqwest** — HTTP client (Blossom upload).
-- **tokio-tungstenite** — WebSocket client (relay publish).
-- **tokio** — Async runtime.
+- **device-signer**: Hardware-linked identity; Schnorr and ECDSA signing.
+- **c2pa**: Content Credentials, minting manifests on capture, reading them in the bridge.
+- **p256 / openssl**: The ES256 credential key and its self-signed certificate.
+- **nostr**: Event building and verification.
+- **reqwest**: HTTP client (Blossom upload).
+- **tokio-tungstenite**: WebSocket client (relay publish).
+- **tokio**: Async runtime.

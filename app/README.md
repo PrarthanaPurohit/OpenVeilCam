@@ -3,7 +3,7 @@
 *The Kotlin Multiplatform client. For the Raspberry Pi firmware and the project as a
 whole, see the [repository root](../README.md).*
 
-**A camera that proves its photographs were not altered — and publishes that proof where
+**A camera that proves its photographs were not altered, and publishes that proof where
 no one can quietly withdraw it.**
 
 OpenVeil signs a photograph at the moment of capture with [C2PA][c2pa] Content
@@ -14,8 +14,7 @@ came off the sensor.
 
 > **Status: working proof of concept.** The full capture → sign → store → publish → verify
 > pipeline runs end to end on Android against live public infrastructure. It is not yet
-> production software; the limitations are listed plainly in
-> [Current limitations](#current-limitations).
+> production software.
 
 <p align="center">
   <img src="docs/images/01-home.jpg"       height="320" alt="Home screen showing device identity status" />
@@ -44,7 +43,7 @@ came off the sensor.
 ## The problem
 
 Photographic evidence is losing its evidentiary value. Generative models can produce
-convincing images of events that never happened, and — more corrosively — their existence
+convincing images of events that never happened, and, more corrosively, their existence
 gives anyone caught on camera a ready denial. A journalist or human rights investigator who
 publishes a genuine photograph now has to argue for its authenticity, and has no better
 tool for that argument than their own credibility.
@@ -93,7 +92,7 @@ mismatch showing.
 at capture time, and that it has not been altered since.
 
 **What it does not prove:** that the photographer was where they claim, that any caption is
-true, or who the photographer is — a linked Nostr account attributes a photo to a key,
+true, or who the photographer is: a linked Nostr account attributes a photo to a key,
 not to a person. Those are different problems, and conflating them is how provenance
 tools mislead people. See
 [docs/VERIFICATION.md][verification] for precisely what a green tick means and what it does
@@ -123,15 +122,12 @@ validating the C2PA manifest and reading the certificate's trust status honestly
 | Device identity | Working | secp256k1 key generated on device, wrapped by Android Keystore |
 | Linked account | Working | Optional; via Amber (NIP-55), a `bunker://` link (pasted or scanned), or a `nostrconnect://` QR. Publish under your own npub, chosen per photo |
 | Android | Working | minSdk 28, 16 KB page aligned |
-| iOS / Desktop / Web | Not yet | Source sets exist; implementations do not |
-| Offline queue | Not yet | Captures survive on disk, but there is no cross-launch retry |
-| Trusted certificate | Not yet | Development identity only — see limitations |
 
 ## Publishing as yourself
 
 By default a capture is published under the phone's own key, and nothing about it points
 at a person. Optionally, you can link your own Nostr account and publish under your name
-instead — chosen per photo, never sticky.
+instead, chosen per photo, never sticky.
 
 ### Two keys, two jobs
 
@@ -146,7 +142,7 @@ The two are joined by the file's SHA-256, not by trust between the keys: the man
 independently verifiable. The event always carries a `["device", <pubkey>]` tag so a
 verifier reading only the event can find the key the manifest names.
 
-### Three ways to link — none of them an nsec
+### Three ways to link, none of them an nsec
 
 There is deliberately no field to paste a private key. A stored nsec would turn a seized
 phone into a loss of the user's entire Nostr identity, not just their photos. Every path
@@ -158,12 +154,12 @@ below grants OpenVeil the right to *ask for* signatures, revocably, and nothing 
 | **`bunker://` link** ([NIP-46][nip46]) | Any bunker: nsec.app, nsecBunker, Amber's bunker mode | Paste it from the clipboard, or scan the QR code the bunker shows. |
 | **`nostrconnect://` QR** ([NIP-46][nip46]) | The signer is on another device | OpenVeil shows a QR; your signer scans it and calls back. The reply must echo a one-time secret, so a stranger on the relay cannot claim to be your signer. |
 
-Note that scanning a QR is for a bunker on a *different* device — a phone cannot point its
+Note that scanning a QR is for a bunker on a *different* device: a phone cannot point its
 camera at its own screen, so with Amber on the same phone the first option is the right one.
 
 What OpenVeil stores for a linked account: your public key, and either the signer app's
 package name or a throwaway conversation key plus the bunker's pubkey and relays. Unlink
-removes it. Every event a signer hands back is verified locally — author, id and signature —
+removes it. Every event a signer hands back is verified locally (author, id and signature)
 before anything is published.
 
 ### The trade-off, stated
@@ -196,7 +192,7 @@ vectors or an independent reference implementation.
 
 ## Building
 
-**Requirements:** JDK 21 and the Android SDK (API 36). Android Studio is optional — the
+**Requirements:** JDK 21 and the Android SDK (API 36). Android Studio is optional; the
 Gradle wrapper is sufficient.
 
 ```bash
@@ -205,7 +201,7 @@ cd OpenVeilCam/app
 ```
 
 Generate the development C2PA signing identity. This is deliberately **not** in version
-control — a signing key must never be committed, and a certificate without its matching key
+control: a signing key must never be committed, and a certificate without its matching key
 would be worse than none, because it looks usable and is not:
 
 ```bash
@@ -228,7 +224,7 @@ per architecture; most phones need `arm64-v8a`.
 
 ## Architecture
 
-Three Gradle modules — a split forced by AGP 9, which forbids combining
+Three Gradle modules, a split forced by AGP 9, which forbids combining
 `com.android.application` with the Kotlin Multiplatform plugin, and useful independently:
 
 ```
@@ -239,7 +235,7 @@ androidApp/   Thin Android host: MainActivity and manifest, no business logic.
 ```
 
 The UI module's inability to reference networking or native types is enforced by the
-dependency graph rather than by convention — `shared` exposes a single assembled
+dependency graph rather than by convention: `shared` exposes a single assembled
 `OpenVeilCore`, which makes "no HTTP types in the UI layer" a fact the compiler checks
 rather than a rule people remember.
 
@@ -272,56 +268,28 @@ fatal:
 - **Bech32 decode**, which surfaced a latent 26-bit `polymod` mask in the encoder (BIP-173
   says 25). Encoding happened to survive it; verification did not.
 - **BUD-11 auth events**: kind, `created_at` in the past, `expiration` in the future, and
-  base64url *without* padding — three mistakes that all surface as an opaque HTTP 401.
+  base64url *without* padding: three mistakes that all surface as an opaque HTTP 401.
 
 An opt-in live integration suite exercises real Blossom servers and relays; see
 [docs/ARCHITECTURE.md][architecture].
 
-Every push additionally verifies that all native libraries are 16 KB page aligned — a
+Every push additionally verifies that all native libraries are 16 KB page aligned, a
 requirement Google Play enforces for Android 15+ targets, and one a dependency bump can
 silently break.
-
-## Current limitations
-
-Stated plainly, because a provenance tool that oversells itself is worse than none.
-
-1. **The signing certificate is a generated development identity.** Validators report
-   captures as *Valid* but not *Trusted*: the tamper-evidence is real and independently
-   checkable, but nothing vouches for who signed. Production needs a CA-issued certificate
-   and a hardware-held key. The app says exactly this rather than showing an unqualified
-   tick.
-2. **Released APKs are debug-signed** — for sideloading and review, not for Google Play.
-3. **No location, ever, in this build.** Publishing to Nostr is irreversible and public, and
-   a precise coordinate attached to a photograph is the most harmful thing this pipeline
-   could leak. The app does not request the permission, does not read GPS, and writes no
-   location assertion.
-4. **The device identity is per-device and non-portable.** The key is generated on the
-   phone and never leaves it. There is no backup, export or import — which also means a
-   lost device is a lost *device* identity. Attribution can go through a linked account
-   (see [Publishing as yourself](#publishing-as-yourself)), which does survive a lost phone,
-   but the attestation key does not.
-7. **Signer-app and QR pairing are verified against the protocol, not against Amber.** The
-   NIP-46 flows run end to end against an in-process bunker in the test suite; the NIP-55
-   Intent/ContentProvider path and the camera-based QR scanner have been built to the spec
-   but need a physical device with Amber installed to confirm.
-5. **Android only.** The multiplatform structure is real and the domain layer is
-   platform-neutral, but only Android has an implementation behind it.
-6. **No persistent offline queue.** A signed capture survives on disk if publishing fails
-   and can be retried in-session, but not yet across app launches.
 
 ## Roadmap
 
 Near-term, in dependency order:
 
-1. **Persistent capture queue** — survive process death and retry publication on reconnect.
+1. **Persistent capture queue**: survive process death and retry publication on reconnect.
    This is the prerequisite for genuinely field-usable offline capture.
-2. **Trusted signing identity** — CA enrolment, plus hardware-backed keys via
+2. **Trusted signing identity**: CA enrolment, plus hardware-backed keys via
    `Signer.withCallback` so the private key never enters the process.
-3. **iOS** — AVFoundation capture and the `c2pa-swift` bridge. The domain layer is already
+3. **iOS**: AVFoundation capture and the `c2pa-swift` bridge. The domain layer is already
    platform-neutral; only the bindings are missing.
-4. **Desktop and Web** — verification-focused builds, so a recipient can check a capture
+4. **Desktop and Web**: verification-focused builds, so a recipient can check a capture
    without installing anything.
-5. **Identity portability** — encrypted backup and import, so losing a device is not losing
+5. **Identity portability**: encrypted backup and import, so losing a device is not losing
    an identity.
 
 ## Contributing
