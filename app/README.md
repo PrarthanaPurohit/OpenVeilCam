@@ -129,6 +129,21 @@ By default a capture is published under the phone's own key, and nothing about i
 at a person. Optionally, you can link your own Nostr account and publish under your name
 instead, chosen per photo, never sticky.
 
+<p align="center">
+  <img src="docs/images/09-account-unlinked.webp" height="420" alt="Home screen before linking: photos publish under the device key, with a Link with a bunker action" />
+  <img src="docs/images/10-link-account.webp"     height="420" alt="Link your Nostr account screen: paste or scan a bunker link, or show a nostrconnect QR code for a signer on another device" />
+  <img src="docs/images/11-account-linked.webp"   height="420" alt="Home screen after linking: the linked npub is shown next to the device npub, with an Unlink action" />
+  <img src="docs/images/12-publish-as.webp"       height="420" alt="Review screen with the Publish as chooser: This device, or Your account with a warning that the photo will be tied to your Nostr identity" />
+</p>
+
+<p align="center">
+  <em>Before linking · the link screen · after linking · choosing whose name goes on a photo</em>
+</p>
+
+Linking does not change what happens at publish time on its own. Every photo's review
+screen defaults to *This device*; tap *Your account* on that photo to publish it under
+your npub. This is the screen where the choice is made, and it is the only place.
+
 ### Two keys, two jobs
 
 | | Signed by | Why |
@@ -150,7 +165,7 @@ below grants OpenVeil the right to *ask for* signatures, revocably, and nothing 
 
 | Method | When | How |
 |---|---|---|
-| **Signer app on this phone** ([NIP-55][nip55], Amber) | Amber is installed | Tap *Use your signer app*; Amber asks which account. Later signatures are answered silently by Amber's ContentProvider once you tell it to remember, so publishing does not require an app switch. |
+| **Signer app on this phone** ([NIP-55][nip55], Amber) | Amber is installed | Tap *Use your signer app*; Amber asks which account. The option only appears when a signer app is installed (the screenshots above were taken on an emulator without one). Later signatures are answered silently by Amber's ContentProvider once you tell it to remember, so publishing does not require an app switch. |
 | **`bunker://` link** ([NIP-46][nip46]) | Any bunker: nsec.app, nsecBunker, Amber's bunker mode | Paste it from the clipboard, or scan the QR code the bunker shows. |
 | **`nostrconnect://` QR** ([NIP-46][nip46]) | The signer is on another device | OpenVeil shows a QR; your signer scans it and calls back. The reply must echo a one-time secret, so a stranger on the relay cannot claim to be your signer. |
 
@@ -248,7 +263,7 @@ machine, and the ordering guarantees the pipeline depends on.
 ./gradlew :shared:testAndroidHostTest
 ```
 
-74 unit tests, concentrated on the places where a silent error would be both invisible and
+Well over a hundred unit tests, concentrated on the places where a silent error would be both invisible and
 fatal:
 
 - **NIP-01 event ids**, recomputed from a known published event and cross-checked against
@@ -265,6 +280,9 @@ fatal:
   secret, `get_public_key`, `sign_event` with local verification of the reply, the `auth_url`
   detour, refusal of a tampered signature, and signer-initiated `nostrconnect://` pairing --
   including that a reply without our secret is ignored.
+- **NIP-55 linking**, against a fake signer app: only publishing permissions are requested,
+  the link survives a restart, signed events verify under the user's key, a refusal leaves
+  nothing linked, and no key material is ever stored for a signer-app session.
 - **Bech32 decode**, which surfaced a latent 26-bit `polymod` mask in the encoder (BIP-173
   says 25). Encoding happened to survive it; verification did not.
 - **BUD-11 auth events**: kind, `created_at` in the past, `expiration` in the future, and
