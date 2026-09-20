@@ -305,9 +305,11 @@ Near-term, in dependency order:
    `Signer.withCallback` so the private key never enters the process.
 3. **OpenVeil SDK**: `shared` published as a library, so other apps can embed the same
    pipeline (C2PA signing at capture, Blossom upload, NIP-94 publishing, re-verification)
-   behind `OpenVeilCore` and produce captures that verify exactly like ours. The module
-   already has no UI or platform SDK types in its public API; what remains is a stable
-   surface, versioning and distribution.
+   and produce captures that verify exactly like ours. The module already sits behind a
+   single entry point, `OpenVeilCore`, with the UI unable to see Ktor or JNI types. What
+   remains: a public facade that hides the Ktor-typed constructors and the Android
+   `Context` factory, semantic versioning, and Maven distribution. Android first; other
+   platforms follow the bindings below.
 4. **iOS**: AVFoundation capture and the `c2pa-swift` bridge. The domain layer is already
    platform-neutral; only the bindings are missing.
 5. **Desktop and Web**: verification-focused builds, so a recipient can check a capture
