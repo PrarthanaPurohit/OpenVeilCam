@@ -303,11 +303,16 @@ Near-term, in dependency order:
    This is the prerequisite for genuinely field-usable offline capture.
 2. **Trusted signing identity**: CA enrolment, plus hardware-backed keys via
    `Signer.withCallback` so the private key never enters the process.
-3. **iOS**: AVFoundation capture and the `c2pa-swift` bridge. The domain layer is already
+3. **OpenVeil SDK**: `shared` published as a library, so other apps can embed the same
+   pipeline (C2PA signing at capture, Blossom upload, NIP-94 publishing, re-verification)
+   behind `OpenVeilCore` and produce captures that verify exactly like ours. The module
+   already has no UI or platform SDK types in its public API; what remains is a stable
+   surface, versioning and distribution.
+4. **iOS**: AVFoundation capture and the `c2pa-swift` bridge. The domain layer is already
    platform-neutral; only the bindings are missing.
-4. **Desktop and Web**: verification-focused builds, so a recipient can check a capture
+5. **Desktop and Web**: verification-focused builds, so a recipient can check a capture
    without installing anything.
-5. **Identity portability**: encrypted backup and import, so losing a device is not losing
+6. **Identity portability**: encrypted backup and import, so losing a device is not losing
    an identity.
 
 ## Contributing

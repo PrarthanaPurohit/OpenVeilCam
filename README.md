@@ -150,7 +150,8 @@ independently, so `cargo build` at the root behaves exactly as it always has.
   device. Can also publish under the user's own Nostr account, linked through Amber
   (NIP-55) or a NIP-46 bunker, never by pasting an nsec, while the device key keeps
   signing the Content Credential. Android runs today; the domain layer is already platform-neutral so iOS, desktop
-  and web are additive. Documentation, including how a third party verifies a capture
+  and web are additive, and it is the basis of a planned OpenVeil SDK that lets other apps
+  publish captures through the same pipeline. Documentation, including how a third party verifies a capture
   without trusting this project, is in [app/docs/](app/docs/).
 
 ## Prerequisites
