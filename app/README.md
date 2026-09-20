@@ -303,13 +303,13 @@ Near-term, in dependency order:
    This is the prerequisite for genuinely field-usable offline capture.
 2. **Trusted signing identity**: CA enrolment, plus hardware-backed keys via
    `Signer.withCallback` so the private key never enters the process.
-3. **OpenVeil SDK**: `shared` published as a library, so other apps can embed the same
-   pipeline (C2PA signing at capture, Blossom upload, NIP-94 publishing, re-verification)
-   and produce captures that verify exactly like ours. The module already sits behind a
-   single entry point, `OpenVeilCore`, with the UI unable to see Ktor or JNI types. What
-   remains: a public facade that hides the Ktor-typed constructors and the Android
-   `Context` factory, semantic versioning, and Maven distribution. Android first; other
-   platforms follow the bindings below.
+3. **OpenVeil SDK**: the app is Android-only today. The plan is a cross-platform SDK built
+   from `shared`, so apps on Android, iOS, desktop and web can embed the same pipeline
+   (C2PA signing at capture, Blossom upload, NIP-94 publishing, re-verification) and
+   produce captures that verify exactly like ours. The module already sits behind a single
+   entry point, `OpenVeilCore`, with the UI unable to see Ktor or JNI types. What remains:
+   a public facade that hides the Ktor-typed constructors and the Android `Context`
+   factory, the platform bindings below, semantic versioning, and distribution.
 4. **iOS**: AVFoundation capture and the `c2pa-swift` bridge. The domain layer is already
    platform-neutral; only the bindings are missing.
 5. **Desktop and Web**: verification-focused builds, so a recipient can check a capture
