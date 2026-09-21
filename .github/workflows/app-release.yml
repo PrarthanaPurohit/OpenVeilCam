@@ -1,20 +1,20 @@
-# Cuts a GitHub Release on every push to the default branch.
+# Cuts a GitHub Release when a release tag is pushed.
+#
+# Tag format: app-v<version>, e.g. app-v0.1.0-beta.1. The "app-" prefix says which product
+# in this repository the tag belongs to; the Pi firmware gets its own prefix when it has
+# releases. A version with a pre-release suffix (-beta.1, -rc.1) is published as a
+# pre-release; a bare version is a full release.
 #
 # Structured as one build job per platform feeding a single collecting release job, so
-# adding iOS, desktop or web later means adding a job and one line to `needs` — not
-# restructuring the pipeline. Only Android is implemented today; the others are stubs in
-# the roadmap (see README.md).
+# adding iOS, desktop or web later means adding a job and one line to `needs`, not
+# restructuring the pipeline. Only Android is implemented today.
 name: App Release
 
-# Only a change under app/ cuts an app release. Firmware releases, when they exist, get
-# their own workflow and their own tag prefix.
 on:
   push:
-    branches: [main, master]
-    paths:
-      - 'app/**'
-      - '.github/workflows/app-release.yml'
-  # Allows cutting a build by hand without an empty commit.
+    tags: ['app-v*']
+  # Allows a manual build from any ref; it is published as a pre-release named after the
+  # run number, never as a versioned release.
   workflow_dispatch:
 
 concurrency:
@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write   # required to create the release and push its tag
+  contents: write   # required to create the release
 
 jobs:
   android:
@@ -31,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     defaults:
       run:
         working-directory: app
@@ -51,11 +52,21 @@ jobs:
       - name: Derive version
         id: version
         run: |
-          # awk, not sed: no backslash escapes to be mangled, and no
-          # dependency on GNU grep -P, which macOS runners lack.
-          BASE=$(awk -F'"' '/^openveil = /{print $2; exit}' gradle/libs.versions.toml)
-          BASE=${BASE:-0.1.0}
-          echo "version=${BASE}-build.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          if [[ "${GITHUB_REF}" == refs/tags/app-v* ]]; then
+            V="${GITHUB_REF#refs/tags/app-v}"
+            # The tag must agree with the version the app reports about itself.
+            CATALOG=$(awk -F'"' '/^openveil = /{print $2; exit}' gradle/libs.versions.toml)
+            if [[ "$V" != "$CATALOG" ]]; then
+              echo "::error::tag says $V but gradle/libs.versions.toml says $CATALOG"
+              exit 1
+            fi
+          else
+            BASE=$(awk -F'"' '/^openveil = /{print $2; exit}' gradle/libs.versions.toml)
+            V="${BASE:-0.0.0}-build.${{ github.run_number }}"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          # Anything with a suffix (beta, rc, build) is a pre-release.
+          if [[ "$V" == *-* ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
 
       - name: Generate development C2PA signing identity
         run: bash tools/generate-dev-cert.sh
@@ -64,6 +75,9 @@ jobs:
         run: ./gradlew :shared:testAndroidHostTest --no-daemon
 
       - name: Build Android APK
+        # versionCode must rise with every release; the run number does that for free.
+        env:
+          OPENVEIL_VERSION_CODE: ${{ github.run_number }}
         run: ./gradlew :androidApp:assembleDebug --no-daemon
 
       - name: Verify 16 KB page alignment of native libraries
@@ -116,18 +130,16 @@ jobs:
         with:
           tag_name: app-v${{ needs.android.outputs.version }}
           name: OpenVeil App ${{ needs.android.outputs.version }}
-          # Marked pre-release deliberately: this is a proof of concept signing with a
-          # development certificate, and the APK is debug-signed. See the body below.
-          prerelease: true
+          prerelease: ${{ needs.android.outputs.prerelease }}
           generate_release_notes: true
           files: dist/*
           body: |
-            Automated build from `${{ github.sha }}`.
+            Built from `${{ github.sha }}`.
 
-            **This is a proof-of-concept build. Two limitations matter before you trust it:**
+            **Before you install, two things to know:**
 
-            - The APKs are **debug-signed**, so they are for sideloading and review only,
-              not for Google Play. You may need to uninstall a previous copy first.
+            - The APKs are **debug-signed**, so they are for sideloading only, not for
+              Google Play. You may need to uninstall a previous copy first.
             - One APK per architecture. **Most phones need `arm64-v8a`.** The `x86`
               variants exist for emulators.
             - Content Credentials are signed with a **generated development certificate**
@@ -135,5 +147,6 @@ jobs:
               *Valid* but not *Trusted*: the tamper-evidence is real and verifiable, but
               nothing vouches for who signed. See `app/docs/SECURITY.md`.
 
-            Every build is checked for 16 KB page alignment and runs the full unit suite,
-            including the NIP-01 event-id, BIP-340 Schnorr and NIP-19 vectors.
+            Every build is checked for 16 KB page alignment and runs the full unit and
+            integration suites, including the NIP-01 event-id, BIP-340 Schnorr, NIP-19
+            and NIP-44 vectors.

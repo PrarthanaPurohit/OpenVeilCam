@@ -26,8 +26,11 @@ android {
         applicationId = "com.openveil"
         minSdk = libs.versions.androidMinSdk.get().toInt()
         targetSdk = libs.versions.androidTargetSdk.get().toInt()
-        versionCode = 1
-        versionName = "0.1.0"
+        // CI sets OPENVEIL_VERSION_CODE to its run number so every release's code is
+        // higher than the last, which Android requires for an update to install.
+        versionCode = System.getenv("OPENVEIL_VERSION_CODE")?.toIntOrNull() ?: 1
+        versionName = libs.versions.openveil.get()
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

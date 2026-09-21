@@ -11,7 +11,7 @@ import com.openveil.nostr.nip46.LinkedAccountRepository
 import com.openveil.publish.PublishPhotoUseCase
 import com.openveil.ui.camera.currentDeviceName
 
-private const val APP_VERSION = "0.1.0"
+private const val APP_VERSION = "0.1.0-beta.1"
 
 @Composable
 actual fun rememberAppDependencies(): AppDependencies {

@@ -1,7 +1,9 @@
 [versions]
-# Product version. CI appends the run number to form the release tag, so bumping
-# this here is the single place a release series is named.
-openveil = "0.1.0"
+# Product version, the single source for versionName. A release is cut by pushing the
+# tag app-v<this value>; CI refuses a tag that disagrees with it. APP_VERSION in
+# composeApp's AppDependencies.android.kt must be kept identical (it goes into the C2PA
+# manifest, which cannot read Gradle).
+openveil = "0.1.0-beta.1"
 # This set mirrors the combination JetBrains ships in the actively-maintained
 # compose-multiplatform/examples/imageviewer project, which is the only reliable signal
 # for "AGP 9 + KMP + Compose Multiplatform actually works together".
