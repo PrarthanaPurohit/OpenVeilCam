@@ -10,11 +10,14 @@
 //!
 //! The device's Nostr identity is secp256k1. C2PA does not permit that curve:
 //! [`SigningAlg`] allows only the NIST P-curves, RSA-PSS and Ed25519. So the
-//! credential is signed by a *separate* P-256 key — but one derived from the
-//! same hardware entropy as the Nostr key, so it is equally device-bound and
-//! equally reproducible after a reflash. Nothing is stored but the
-//! certificate; the private key is re-derived on every run and never written
-//! to disk, matching how `device-signer` treats the Nostr secret.
+//! credential is signed by a *separate* P-256 key, derived from the same two
+//! ingredients as the Nostr key: the hardware fingerprint and the random salt
+//! `device-signer` persists on first run. The salt is what makes either key
+//! unforgeable; the fingerprint alone is public. So the credential key is
+//! equally device-bound and equally reproducible after a reflash, as long as
+//! the salt survives. Nothing is stored but the certificate; the private key
+//! is re-derived on every run and never written to disk, matching how
+//! `device-signer` treats the Nostr secret.
 //!
 //! The two identities are tied together in both directions: the npub is the
 //! certificate's subject and is repeated in a [`NOSTR_ASSERTION`] assertion
@@ -31,6 +34,7 @@
 
 use anyhow::{bail, Context, Result};
 use c2pa::{Builder, ClaimGeneratorInfo, SigningAlg};
+use device_signer::{FileSystemStorage, KeyStorage};
 use hkdf::Hkdf;
 use openssl::asn1::Asn1Time;
 use openssl::bn::BigNum;
@@ -91,7 +95,18 @@ impl C2paIdentity {
     /// `npub` becomes the certificate subject, which is why it is required
     /// here rather than only at signing time.
     pub fn load_or_create(dir: &Path, camera_id: Option<String>, npub: &str) -> Result<Self> {
-        let key = derive_signing_key(camera_id)?;
+        Self::load_or_create_with(dir, camera_id, npub, &FileSystemStorage::new(None, None))
+    }
+
+    /// [`Self::load_or_create`] with an explicit salt store, so tests can point
+    /// it at a temporary location instead of the machine's real salt.
+    pub fn load_or_create_with(
+        dir: &Path,
+        camera_id: Option<String>,
+        npub: &str,
+        salt_store: &dyn KeyStorage,
+    ) -> Result<Self> {
+        let key = derive_signing_key(camera_id, salt_store)?;
         let key_pem = key
             .to_pkcs8_pem(LineEnding::LF)
             .context("encoding the derived P-256 key as PKCS#8 PEM")?
@@ -213,14 +228,34 @@ pub fn sign_capture(
     Ok(dest.into_inner())
 }
 
-/// Derive the credential key from hardware entropy.
-fn derive_signing_key(camera_id: Option<String>) -> Result<p256::SecretKey> {
+/// Derive the credential key from the same two ingredients as the Nostr key.
+///
+/// The hardware fingerprint on its own is not secret: CPU serial, MAC and
+/// machine-id are all readable by anyone on the LAN, and the camera ID is
+/// printed in every event. What makes the Nostr key unforgeable is the random
+/// 32-byte salt `device-signer` persists on first run, so the credential key
+/// must take that salt too. It is read from the same storage `DeviceIdentity`
+/// uses, and its absence is an error rather than a fallback, because a key
+/// derived without it could be recomputed by anyone who knows the hardware.
+fn derive_signing_key(camera_id: Option<String>, salt_store: &dyn KeyStorage) -> Result<p256::SecretKey> {
     let entropy = device_signer::HardwareEntropy::new(camera_id)
         .map_err(|e| anyhow::anyhow!("collecting hardware entropy: {e}"))?;
-    key_from_entropy(&entropy.get_hardware_id())
+    // `DeviceIdentity::new` runs earlier in startup and creates the salt if it
+    // is missing, so by the time this runs it exists in one of the two places
+    // the default storage looks.
+    let salt = salt_store
+        .get_salt()
+        .map_err(|e| anyhow::anyhow!("reading the device salt: {e}; initialise the Nostr identity first"))?;
+    key_from_entropy(&credential_ikm(&entropy.get_hardware_id(), &salt))
 }
 
-/// Stretch arbitrary entropy into a valid P-256 secret scalar.
+/// Input keying material for the credential key: hardware fingerprint followed
+/// by the device salt, mirroring what `device-signer` hashes for the Nostr seed.
+fn credential_ikm(hardware_id: &[u8], salt: &[u8; 32]) -> Vec<u8> {
+    [hardware_id, &salt[..]].concat()
+}
+
+/// Stretch keying material into a valid P-256 secret scalar.
 ///
 /// Split out from [`derive_signing_key`] so it can be tested without depending
 /// on whatever hardware the test happens to run on.
@@ -352,6 +387,28 @@ mod tests {
         assert_ne!(a.to_bytes(), other.to_bytes());
     }
 
+    /// The hardware fingerprint is public. Two devices with identical
+    /// fingerprints, or an attacker who has read one, must still not arrive
+    /// at the same credential key: the persisted salt has to make the
+    /// difference. Regression test for GitHub issue #3.
+    #[test]
+    fn credential_key_depends_on_the_device_salt() {
+        let hardware = b"cpu-serial|mac|machine-id|camera";
+        let salt_a = [0x11u8; 32];
+        let salt_b = [0x22u8; 32];
+
+        let with_a = key_from_entropy(&credential_ikm(hardware, &salt_a)).unwrap();
+        let with_b = key_from_entropy(&credential_ikm(hardware, &salt_b)).unwrap();
+        let without = key_from_entropy(hardware).unwrap();
+
+        assert_ne!(with_a.to_bytes(), with_b.to_bytes(), "salt must change the key");
+        assert_ne!(with_a.to_bytes(), without.to_bytes(), "fingerprint alone must not reproduce it");
+
+        // Same inputs, same key: a reboot or reflash with the salt intact keeps the identity.
+        let again = key_from_entropy(&credential_ikm(hardware, &salt_a)).unwrap();
+        assert_eq!(with_a.to_bytes(), again.to_bytes());
+    }
+
     /// A certificate belongs to exactly one device.
     #[test]
     fn cert_matches_only_its_own_key() {
@@ -382,12 +439,18 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("openveil-c2pa-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
 
-        let first = C2paIdentity::load_or_create(&dir, Some("e2e".into()), TEST_NPUB).unwrap();
+        // A salt of our own in a temp location, so the test neither reads nor
+        // writes the real device salt.
+        let salt_path = dir.join("device_salt");
+        let salt_store = FileSystemStorage::new(salt_path.to_str(), salt_path.to_str());
+        salt_store.store_salt(&[0x5au8; 32]).unwrap();
+
+        let first = C2paIdentity::load_or_create_with(&dir, Some("e2e".into()), TEST_NPUB, &salt_store).unwrap();
         let cert_path = dir.join("c2pa_cert.pem");
         assert!(cert_path.exists(), "first run should persist a certificate");
 
         // Second run must reuse what is on disk, byte for byte.
-        let second = C2paIdentity::load_or_create(&dir, Some("e2e".into()), TEST_NPUB).unwrap();
+        let second = C2paIdentity::load_or_create_with(&dir, Some("e2e".into()), TEST_NPUB, &salt_store).unwrap();
         assert_eq!(first.cert_pem(), second.cert_pem());
 
         // A cert carrying someone else's key is discarded and re-minted rather
@@ -401,14 +464,14 @@ mod tests {
         let foreign_cert = self_signed_cert(&foreign_key, TEST_NPUB).unwrap();
         std::fs::write(&cert_path, &foreign_cert).unwrap();
 
-        let third = C2paIdentity::load_or_create(&dir, Some("e2e".into()), TEST_NPUB).unwrap();
+        let third = C2paIdentity::load_or_create_with(&dir, Some("e2e".into()), TEST_NPUB, &salt_store).unwrap();
         assert_ne!(third.cert_pem(), foreign_cert, "foreign cert should not be kept");
 
         // Compared by key rather than by bytes: ECDSA signs with a random
         // nonce, so a re-minted certificate never byte-equals its predecessor
         // even when it carries exactly the same key. The key comes from this
-        // machine's real entropy, since that is what `load_or_create` uses.
-        let own_key = derive_signing_key(Some("e2e".into()))
+        // machine's real fingerprint plus the test salt, as `load_or_create_with` does.
+        let own_key = derive_signing_key(Some("e2e".into()), &salt_store)
             .unwrap()
             .to_pkcs8_pem(LineEnding::LF)
             .unwrap()

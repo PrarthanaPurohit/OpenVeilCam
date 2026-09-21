@@ -67,8 +67,12 @@ pubkey, and the `px1` hash.
 
 The Nostr identity is secp256k1. C2PA does not permit that curve (the spec
 allows only the NIST P-curves, RSA-PSS and Ed25519), so the credential is
-signed by a **separate P-256 key derived from the same hardware entropy**. Both
-keys are re-derived on every run and neither is written to disk; only the
+signed by a **separate P-256 key derived from the same two ingredients as the
+Nostr key**: the hardware fingerprint and the random 32-byte salt `device-signer`
+persists on first run. The fingerprint (CPU serial, MAC, machine-id, camera ID)
+is public; the salt is what makes both keys unforgeable, and it must go into
+both derivations (it did not, before [#3](https://github.com/PrarthanaPurohit/OpenVeilCam/issues/3)).
+Both keys are re-derived on every run and neither is written to disk; only the
 self-signed certificate is persisted, at `~/.hardware_identity/c2pa_cert.pem`.
 
 The npub is the certificate's subject *and* is repeated inside the manifest,
