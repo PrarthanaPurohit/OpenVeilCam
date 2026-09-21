@@ -24,6 +24,34 @@ so a capture from either is discoverable and verifiable the same way.
 
 <img width="1912" height="856" alt="Image" src="https://github.com/user-attachments/assets/c4a2df72-b8fe-49ef-b2ff-574563c57e4f" />
 
+### The Android app
+
+<p align="center">
+  <img src="app/docs/images/01-home.jpg"       height="300" alt="Home screen showing device identity status" />
+  <img src="app/docs/images/02-camera.jpg"     height="300" alt="Camera viewfinder" />
+  <img src="app/docs/images/03-review.jpg"     height="300" alt="Review screen before publishing" />
+  <img src="app/docs/images/04-publishing.jpg" height="300" alt="Publishing progress" />
+  <img src="app/docs/images/05-published.jpg"  height="300" alt="Confirmation that the photo was published" />
+</p>
+
+<p align="center">
+  <em>Home · capture · review · publish · confirmation</em>
+</p>
+
+<p align="center">
+  <img src="app/docs/images/07-credentials.jpg"  height="300" alt="Content Credentials verdict: the signature matches the file, but the certificate is not on a recognised trust list" />
+  <img src="app/docs/images/08-technical.jpg"    height="300" alt="Technical details: hashes, C2PA manifest ID, Nostr event ID and Blossom URL, each copyable" />
+  <img src="app/docs/images/12-publish-as.webp"  height="300" alt="Publish as chooser: this device, or your own linked Nostr account" />
+</p>
+
+<p align="center">
+  <em>The credential verdict, stated without overclaiming · every hash and identifier, copyable · publish as the device or as yourself</em>
+</p>
+
+Download the current beta from [Releases](https://github.com/PrarthanaPurohit/OpenVeilCam/releases)
+(most phones need the `arm64-v8a` APK). More screens, including account linking, are in
+[app/README.md](app/README.md).
+
 ## Content Credentials on capture (`openveil-cam`)
 
 Every frame the Pi captures leaves with a real C2PA manifest embedded in it,
