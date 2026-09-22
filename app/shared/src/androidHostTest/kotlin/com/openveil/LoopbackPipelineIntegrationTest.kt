@@ -259,4 +259,103 @@ class LoopbackPipelineIntegrationTest {
         assertTrue(files.files.isEmpty())
     }
 
+    @Test
+    fun the_blob_read_back_from_blossom_is_byte_identical() = runBlocking {
+        val client = KtorBlossomClient(http, identity = { runBlocking { identities.getOrCreate() } }, config = BlossomConfig(servers = listOf(blossom.baseUrl)))
+        val hash = sha256Hex(signedBytes)
+
+        val uploaded = client.upload(com.openveil.domain.model.SignedAsset(signedBytes, "image/jpeg", null), hash)
+        assertTrue(uploaded is AppResult.Success, (uploaded as? AppResult.Failure)?.detail)
+
+        val fetched = client.get(hash, uploaded.value.serverUrl)
+        assertTrue(fetched is AppResult.Success)
+        assertContentEquals(signedBytes, fetched.value)
+        assertEquals(hash, sha256Hex(fetched.value))
+    }
+
+    @Test
+    fun a_rejected_authorization_stops_immediately_and_keeps_the_master() = runBlocking {
+        blossom.respondWith = HttpStatusCode.Unauthorized
+        val relay = startRelay(RelayMode.ACCEPT)
+
+        val final = pipeline(servers = listOf(blossom.baseUrl, blossom.baseUrl), relays = listOf(relay)).publish(newJob()).toList().last()
+
+        assertEquals(PublishStatus.FAILED, final.photo.status)
+        assertEquals(PublishError.BLOSSOM_AUTH_FAILED, final.photo.error)
+        assertEquals(1, blossom.uploads, "an auth failure is not retried on the next server -- the same token would fail there too")
+        assertTrue(relay.received.isEmpty())
+        assertEquals(1, files.files.size, "the signed master is the only copy and must survive")
+    }
+
+    @Test
+    fun an_unreachable_server_falls_through_to_the_next_one() = runBlocking {
+        val dead = "http://127.0.0.1:${freePort()}"
+        val relay = startRelay(RelayMode.ACCEPT)
+
+        val final = pipeline(servers = listOf(dead, blossom.baseUrl), relays = listOf(relay)).publish(newJob()).toList().last()
+
+        assertEquals(PublishStatus.PUBLISHED, final.photo.status, "error: ${final.photo.error}")
+        assertTrue(final.photo.blossomUrl!!.startsWith(blossom.baseUrl))
+    }
+
+    @Test
+    fun a_server_that_reports_a_different_hash_is_not_trusted() = runBlocking {
+        // If the server says it stored different bytes, publishing our hash would produce
+        // an event whose x tag matches nothing anyone can download.
+        blossom.reportHash = "ff".repeat(32)
+        val relay = startRelay(RelayMode.ACCEPT)
+
+        val final = pipeline(relays = listOf(relay)).publish(newJob()).toList().last()
+
+        assertEquals(PublishStatus.FAILED, final.photo.status)
+        assertEquals(PublishError.BLOSSOM_UPLOAD_FAILED, final.photo.error)
+        assertTrue(relay.received.isEmpty(), "nothing is announced for a blob we cannot vouch for")
+    }
+
+    @Test
+    fun when_every_relay_refuses_the_upload_is_kept_and_a_retry_only_republishes() = runBlocking {
+        val relay = startRelay(RelayMode.REJECT)
+        val useCase = pipeline(relays = listOf(relay))
+
+        val failed = useCase.publish(newJob()).toList().last()
+
+        assertEquals(PublishStatus.FAILED, failed.photo.status)
+        assertEquals(PublishError.NOSTR_PUBLISH_FAILED, failed.photo.error)
+        assertNotNull(failed.photo.blossomUrl)
+        assertEquals(1, blossom.uploads)
+        assertEquals(1, files.files.size)
+
+        relay.mode = RelayMode.ACCEPT
+        val final = useCase.publish(failed).toList().last()
+
+        assertEquals(PublishStatus.PUBLISHED, final.photo.status)
+        assertEquals(1, blossom.uploads, "the retry must not upload again")
+        assertEquals(1, c2pa.signCalls)
+        assertTrue(files.files.isEmpty())
+    }
+
+    @Test
+    fun a_relay_that_never_answers_times_out_without_holding_up_the_others() = runBlocking {
+        val silent = startRelay(RelayMode.SILENT)
+        val good = startRelay(RelayMode.ACCEPT)
+
+        val started = System.nanoTime()
+        val final = pipeline(relays = listOf(silent, good), relayTimeout = 2.seconds).publish(newJob()).toList().last()
+        val elapsedSeconds = (System.nanoTime() - started) / 1_000_000_000.0
+
+        assertEquals(PublishStatus.PUBLISHED, final.photo.status, "error: ${final.photo.error}")
+        assertEquals(listOf(good.url), final.photo.acceptedRelays)
+        assertTrue(elapsedSeconds < 8, "relays are tried concurrently; took ${elapsedSeconds}s")
+    }
+
+    @Test
+    fun a_relay_that_never_answers_is_a_failure_when_it_is_the_only_one() = runBlocking {
+        val silent = startRelay(RelayMode.SILENT)
+
+        val final = pipeline(relays = listOf(silent), relayTimeout = 1.seconds).publish(newJob()).toList().last()
+
+        assertEquals(PublishStatus.FAILED, final.photo.status)
+        assertEquals(PublishError.NOSTR_PUBLISH_FAILED, final.photo.error)
+        assertEquals(1, silent.received.size, "the event did reach the relay")
+    }
 }
