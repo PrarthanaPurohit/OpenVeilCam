@@ -23,6 +23,9 @@ kotlin {
             enable = true
         }
 
+        // Same opt-in as :shared: without it commonTest is never compiled.
+        withHostTest { }
+
         compilerOptions { jvmTarget = JvmTarget.JVM_17 }
     }
 
