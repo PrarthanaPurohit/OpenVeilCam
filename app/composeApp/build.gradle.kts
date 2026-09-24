@@ -54,6 +54,18 @@ kotlin {
             implementation(libs.androidx.camera.view)
             implementation(libs.zxing.core)
         }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
+        }
+        // Test-only. Ktor stays off the UI's main classpath; the coordinator test needs it
+        // solely to construct the real LinkedAccountRepository with an in-memory store.
+        getByName("androidHostTest").dependencies {
+            implementation(libs.secp256k1)
+            implementation(libs.secp256k1.jni.jvm)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.okhttp)
+        }
     }
 }
 
