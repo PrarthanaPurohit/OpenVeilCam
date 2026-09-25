@@ -26,6 +26,8 @@ c2pa = "0.0.9"
 
 androidxActivity = "1.13.0"
 androidxCamera = "1.6.1"
+androidxTest = "1.7.0"
+androidxTestExt = "1.3.0"
 
 # Android SDK levels. minSdk 28 is the floor imposed by c2pa-android 1.0.0.
 androidMinSdk = "28"
@@ -54,6 +56,12 @@ c2pa-android = { module = "com.github.contentauth:c2pa-android", version.ref = "
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+
+# On-device (instrumented) tests. The C2PA SDK is JNI over c2pa-rs and ships Android-only
+# native libraries, so the real signer can only be exercised on a device or emulator.
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTest" }
+androidx-test-core = { module = "androidx.test:core-ktx", version.ref = "androidxTest" }
+androidx-test-ext-junit = { module = "androidx.test.ext:junit-ktx", version.ref = "androidxTestExt" }
 
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }

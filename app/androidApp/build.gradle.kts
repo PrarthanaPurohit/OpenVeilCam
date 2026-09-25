@@ -16,6 +16,14 @@ kotlin {
 dependencies {
     implementation(project(":composeApp"))
     implementation(libs.androidx.activity.compose)
+
+    // The instrumented tests drive the real C2PA signer, which lives in :shared behind
+    // :composeApp. Test-only; the host module's own code stays free of domain types.
+    androidTestImplementation(project(":shared"))
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
 }
 
 android {
