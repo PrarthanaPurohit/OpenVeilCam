@@ -52,10 +52,15 @@ jobs:
         run: bash tools/generate-dev-cert.sh
 
       - name: Run unit tests
-        run: ./gradlew :shared:testAndroidHostTest --no-daemon
+        run: ./gradlew :shared:testAndroidHostTest :composeApp:testAndroidHostTest --no-daemon
 
       - name: Build Android APK
         run: ./gradlew :androidApp:assembleDebug --no-daemon
+
+      # No emulator on this runner, so the on-device tests are only compiled here; run
+      # them locally with :androidApp:connectedDebugAndroidTest.
+      - name: Compile on-device tests
+        run: ./gradlew :androidApp:assembleDebugAndroidTest --no-daemon
 
       # Regression guard for a bug that already bit us once: secp256k1-kmp below 0.19.0
       # shipped 4 KB-aligned native libraries, which Google Play rejects for Android 15+.
@@ -74,5 +79,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-report
-          path: app/shared/build/reports/tests/
+          path: |
+            app/shared/build/reports/tests/
+            app/composeApp/build/reports/tests/
           retention-days: 7

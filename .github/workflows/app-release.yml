@@ -72,7 +72,7 @@ jobs:
         run: bash tools/generate-dev-cert.sh
 
       - name: Run unit tests
-        run: ./gradlew :shared:testAndroidHostTest --no-daemon
+        run: ./gradlew :shared:testAndroidHostTest :composeApp:testAndroidHostTest --no-daemon
 
       - name: Build Android APK
         # versionCode must rise with every release; the run number does that for free.
